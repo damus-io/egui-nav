@@ -56,7 +56,7 @@ impl eframe::App for MyApp {
             .frame(Frame::none())
             .show(ctx, |ui| {
                 let route = &[Route::Home, Route::Profile("bob".to_string())];
-                Nav::new(route).show(ui, |ui, nav| match nav.top_route() {
+                Nav::new(route).show(ui, |ui, nav| match nav.top() {
                     Route::Home => ui.label("Home body"),
                     Route::Profile(name) => ui.label("Profile body"),
                 });
