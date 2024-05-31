@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+members = ["egui-nav", "examples/*"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+egui-nav = { path = "egui-nav" }
+egui = "*"
+ 

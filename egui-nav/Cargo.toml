@@ -1,0 +1,11 @@
+[package]
+name = "egui-nav"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+#egui = { path = "/home/jb55/dev/github/emilk/egui/crates/egui" }
+#egui_extras = { path = "/home/jb55/dev/github/emilk/egui/crates/egui_extras" }
+egui = "*"
+egui_extras = "*"
+ 
