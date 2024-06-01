@@ -3,9 +3,35 @@ use egui::{Color32, Pos2, Sense, Stroke, Vec2};
 
 pub struct Nav<'r, T> {
     /// The back chevron stroke
+    padding: f32,
     stroke: Stroke,
     chevron_size: Vec2,
     route: &'r [T],
+}
+
+pub enum NavAction {
+    Returning(f32),
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct State {
+    offset: f32,
+}
+
+impl State {
+    pub fn load(ctx: &egui::Context, id: egui::Id) -> Option<Self> {
+        ctx.data_mut(|d| d.get_temp(id))
+    }
+
+    pub fn store(self, ctx: &egui::Context, id: egui::Id) {
+        ctx.data_mut(|d| d.insert_temp(id, self));
+    }
+}
+
+pub struct NavResponse<R> {
+    inner: R,
+    response: egui::Response,
+    action: Option<NavAction>,
 }
 
 impl<'r, T> Nav<'r, T> {
@@ -16,12 +42,19 @@ impl<'r, T> Nav<'r, T> {
         assert!(route.len() > 0, "Nav routes cannot be empty");
         let chevron_size = Vec2::new(14.0, 20.0);
         let stroke = Stroke::new(2.0, Color32::GOLD);
+        let padding = 4.0;
 
         Nav {
+            padding,
             stroke,
             chevron_size,
             route,
         }
+    }
+
+    pub fn chevron_padding(mut self, padding: f32) -> Self {
+        self.padding = padding;
+        self
     }
 
     pub fn stroke(mut self, stroke: impl Into<Stroke>) -> Self {
@@ -61,25 +94,88 @@ impl<'r, T> Nav<'r, T> {
         }
     }
 
+    fn header(&self, ui: &mut egui::Ui, label: String) -> egui::Response {
+        ui.horizontal(|ui| {
+            let r = chevron(ui, self.padding, self.chevron_size, self.stroke);
+            let label_response = ui.add(
+                egui::Label::new(label)
+                    .sense(Sense::click())
+                    .selectable(false),
+            );
+
+            let response = r.union(label_response);
+
+            if let Some(cursor) = ui.visuals().interact_cursor {
+                if response.hovered() {
+                    ui.ctx().set_cursor_icon(cursor);
+                }
+            }
+
+            if response.clicked() {}
+
+            response
+        })
+        .inner
+    }
+
     pub fn show<F, R>(&self, ui: &mut egui::Ui, show_route: F) -> R
     where
         F: Fn(&mut egui::Ui, &Nav<'_, T>) -> R,
         T: Display,
     {
         let route = self.top();
-        if let Some(under) = self.top_n(1) {
-            let _back_response = ui
-                .horizontal(|ui| {
-                    let r = chevron(ui, 4.0, self.chevron_size, self.stroke);
-                    ui.label(format!("{}", under));
-                    r
-                })
-                .inner;
 
-            show_route(ui, self)
-        } else {
-            show_route(ui, self)
+        if let Some(under) = self.top_n(1) {
+            let _r = self.header(ui, under.to_string());
         }
+
+        let id = ui.id().with("nav");
+        let mut state = State::load(ui.ctx(), id).unwrap_or_default();
+        let available_outer = ui.available_rect_before_wrap();
+
+        // Drag contents to transition back.
+        // We must do this BEFORE adding content to the `Nav`,
+        // or we will steal input from the widgets we contain.
+        let content_response = ui.interact(available_outer, id.with("drag"), Sense::drag());
+
+        if content_response.dragged() {
+            state.offset += ui.input(|input| input.pointer.delta()).x;
+        } else {
+            // If we're not dragging, animate the current offset back to
+            // the current or previous view depending on how much we are
+            // offset
+
+            let abs_offset = state.offset.abs();
+            if abs_offset > 0.0 {
+                let sgn = state.offset.signum();
+                let amt = (abs_offset.powf(1.2) - 1.0) * 0.1;
+                let adj = amt * sgn;
+                let adjusted = state.offset - adj;
+
+                // if adjusting will flip a sign, then just set to 0
+                state.offset = if adjusted.signum() != sgn {
+                    0.0
+                } else {
+                    adjusted
+                };
+
+                // since we're animating we need to request a repaint
+                ui.ctx().request_repaint();
+            }
+        }
+
+        state.store(ui.ctx(), id);
+
+        let r = show_route(ui, self);
+
+        if state.offset > 0.0 {
+            ui.ctx().transform_layer_shapes(
+                ui.layer_id(),
+                egui::emath::TSTransform::from_translation(Vec2::new(state.offset, 0.0)),
+            );
+        }
+
+        r
     }
 }
 

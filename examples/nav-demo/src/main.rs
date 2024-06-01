@@ -26,7 +26,7 @@ fn main() {
             .start(
                 "the_canvas_id", // hardcode it
                 web_options,
-                Box::new(|_cc| Box::<MyApp>::default()),
+                Box::new(|cc| Box::<MyApp>::default()),
             )
             .await
             .expect("failed to start eframe");
@@ -55,6 +55,7 @@ impl eframe::App for MyApp {
         egui::CentralPanel::default()
             .frame(Frame::none())
             .show(ctx, |ui| {
+                ui.visuals_mut().interact_cursor = Some(egui::CursorIcon::PointingHand);
                 let route = &[Route::Home, Route::Profile("bob".to_string())];
                 Nav::new(route).show(ui, |ui, nav| match nav.top() {
                     Route::Home => ui.label("Home body"),
