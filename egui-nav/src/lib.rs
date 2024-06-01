@@ -1,5 +1,5 @@
 use core::fmt::Display;
-use egui::{Color32, Pos2, Sense, Stroke, Vec2};
+use egui::{vec2, Color32, LayerId, Order, Pos2, Rect, Sense, Stroke, Vec2};
 
 pub struct Nav<'r, T> {
     /// The back chevron stroke
@@ -131,12 +131,15 @@ impl<'r, T> Nav<'r, T> {
 
         let id = ui.id().with("nav");
         let mut state = State::load(ui.ctx(), id).unwrap_or_default();
-        let available_outer = ui.available_rect_before_wrap();
+        let available_rect = ui.available_rect_before_wrap();
+
+        // child ui so we can transform it separately
+        let mut content_ui = ui.child_ui(available_rect, *ui.layout());
 
         // Drag contents to transition back.
         // We must do this BEFORE adding content to the `Nav`,
         // or we will steal input from the widgets we contain.
-        let content_response = ui.interact(available_outer, id.with("drag"), Sense::drag());
+        let content_response = content_ui.interact(available_rect, id.with("drag"), Sense::drag());
 
         if content_response.dragged() {
             state.offset += ui.input(|input| input.pointer.delta()).x;
@@ -148,12 +151,13 @@ impl<'r, T> Nav<'r, T> {
             let abs_offset = state.offset.abs();
             if abs_offset > 0.0 {
                 let sgn = state.offset.signum();
-                let amt = (abs_offset.powf(1.2) - 1.0) * 0.1;
+                let min_adj = 0.5;
+                let amt = ((abs_offset.powf(1.2) - 1.0) * 0.1).max(min_adj);
                 let adj = amt * sgn;
                 let adjusted = state.offset - adj;
 
                 // if adjusting will flip a sign, then just set to 0
-                state.offset = if adjusted.signum() != sgn {
+                state.offset = if (state.offset - adj).signum() != sgn {
                     0.0
                 } else {
                     adjusted
@@ -166,16 +170,40 @@ impl<'r, T> Nav<'r, T> {
 
         state.store(ui.ctx(), id);
 
-        let r = show_route(ui, self);
+        // transition rendering
+        if state.offset > 0.0 && self.route.len() >= 2 {
+            let behind_id = ui.id().with("behind");
+            let bg_clip =
+                Rect::from_min_size(available_rect.min, vec2(state.offset, available_rect.max.y));
+            let mut behind_ui = egui::Ui::new(
+                ui.ctx().clone(),
+                LayerId::new(Order::Foreground, behind_id),
+                behind_id,
+                available_rect,
+                bg_clip,
+            );
 
-        if state.offset > 0.0 {
-            ui.ctx().transform_layer_shapes(
-                ui.layer_id(),
+            // render the previous nav view in the background when
+            // transitioning
+            {
+                let nav = Nav {
+                    route: &self.route[..self.route.len() - 1],
+                    ..*self
+                };
+                let _r = show_route(&mut behind_ui, &nav);
+            }
+
+            let r = show_route(&mut content_ui, self);
+
+            content_ui.ctx().transform_layer_shapes(
+                content_ui.layer_id(),
                 egui::emath::TSTransform::from_translation(Vec2::new(state.offset, 0.0)),
             );
-        }
 
-        r
+            r
+        } else {
+            show_route(&mut content_ui, self)
+        }
     }
 }
 
