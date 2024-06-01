@@ -133,13 +133,10 @@ impl<'r, T> Nav<'r, T> {
         let mut state = State::load(ui.ctx(), id).unwrap_or_default();
         let available_rect = ui.available_rect_before_wrap();
 
-        // child ui so we can transform it separately
-        let mut content_ui = ui.child_ui(available_rect, *ui.layout());
-
         // Drag contents to transition back.
         // We must do this BEFORE adding content to the `Nav`,
         // or we will steal input from the widgets we contain.
-        let content_response = content_ui.interact(available_rect, id.with("drag"), Sense::drag());
+        let content_response = ui.interact(available_rect, id.with("drag"), Sense::drag());
 
         if content_response.dragged() {
             state.offset += ui.input(|input| input.pointer.delta()).x;
@@ -172,37 +169,56 @@ impl<'r, T> Nav<'r, T> {
 
         // transition rendering
         if state.offset > 0.0 && self.route.len() >= 2 {
-            let behind_id = ui.id().with("behind");
-            let bg_clip =
-                Rect::from_min_size(available_rect.min, vec2(state.offset, available_rect.max.y));
-            let mut behind_ui = egui::Ui::new(
-                ui.ctx().clone(),
-                LayerId::new(Order::Foreground, behind_id),
-                behind_id,
-                available_rect,
-                bg_clip,
-            );
-
-            // render the previous nav view in the background when
-            // transitioning
+            // behind transition layer
             {
+                let id = ui.id().with("behind");
+                let clip = Rect::from_min_size(
+                    available_rect.min,
+                    vec2(state.offset, available_rect.max.y),
+                );
+
+                let mut ui = egui::Ui::new(
+                    ui.ctx().clone(),
+                    LayerId::new(Order::Foreground, id),
+                    id,
+                    available_rect,
+                    clip,
+                );
+
+                // render the previous nav view in the background when
+                // transitioning
                 let nav = Nav {
                     route: &self.route[..self.route.len() - 1],
                     ..*self
                 };
-                let _r = show_route(&mut behind_ui, &nav);
+                let _r = show_route(&mut ui, &nav);
             }
 
-            let r = show_route(&mut content_ui, self);
+            // foreground layer
+            {
+                let id = ui.id().with("front");
 
-            content_ui.ctx().transform_layer_shapes(
-                content_ui.layer_id(),
-                egui::emath::TSTransform::from_translation(Vec2::new(state.offset, 0.0)),
-            );
+                let mut ui = egui::Ui::new(
+                    ui.ctx().clone(),
+                    LayerId::new(Order::Foreground, id),
+                    id,
+                    available_rect,
+                    available_rect,
+                );
 
-            r
+                // render the previous nav view in the background when
+                // transitioning
+                let r = show_route(&mut ui, self);
+
+                ui.ctx().transform_layer_shapes(
+                    ui.layer_id(),
+                    egui::emath::TSTransform::from_translation(Vec2::new(state.offset, 0.0)),
+                );
+
+                r
+            }
         } else {
-            show_route(&mut content_ui, self)
+            show_route(ui, self)
         }
     }
 }
