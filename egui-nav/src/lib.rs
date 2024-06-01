@@ -1,5 +1,7 @@
 use core::fmt::Display;
-use egui::{vec2, Color32, LayerId, Order, Pos2, Rect, Sense, Stroke, Vec2};
+use egui::{
+    emath::TSTransform, pos2, vec2, Color32, LayerId, Order, Pos2, Rect, Sense, Stroke, Vec2,
+};
 
 pub struct Nav<'r, T> {
     /// The back chevron stroke
@@ -16,6 +18,7 @@ pub enum NavAction {
 #[derive(Clone, Copy, Debug, Default)]
 struct State {
     offset: f32,
+    popped_min_rect: Option<Rect>,
 }
 
 impl State {
@@ -28,11 +31,13 @@ impl State {
     }
 }
 
+/*
 pub struct NavResponse<R> {
     inner: R,
     response: egui::Response,
     action: Option<NavAction>,
 }
+*/
 
 impl<'r, T> Nav<'r, T> {
     /// Nav requires at least one route or it will panic
@@ -123,8 +128,6 @@ impl<'r, T> Nav<'r, T> {
         F: Fn(&mut egui::Ui, &Nav<'_, T>) -> R,
         T: Display,
     {
-        let route = self.top();
-
         if let Some(under) = self.top_n(1) {
             let _r = self.header(ui, under.to_string());
         }
@@ -148,8 +151,7 @@ impl<'r, T> Nav<'r, T> {
             let abs_offset = state.offset.abs();
             if abs_offset > 0.0 {
                 let sgn = state.offset.signum();
-                let min_adj = 0.5;
-                let amt = ((abs_offset.powf(1.2) - 1.0) * 0.1).max(min_adj);
+                let amt = springy(state.offset);
                 let adj = amt * sgn;
                 let adjusted = state.offset - adj;
 
@@ -172,9 +174,18 @@ impl<'r, T> Nav<'r, T> {
             // behind transition layer
             {
                 let id = ui.id().with("behind");
+                let min_rect = state.popped_min_rect.unwrap_or(available_rect);
+                let progress = state.offset / available_rect.width();
+                let initial_shift = -min_rect.width() * 0.1;
+                let mut amt = initial_shift + springy(state.offset);
+                if amt > 0.0 {
+                    amt = 0.0;
+                }
+
+                //let clip_width = state.offset.max(available_rect.width());
                 let clip = Rect::from_min_size(
                     available_rect.min,
-                    vec2(state.offset, available_rect.max.y),
+                    vec2(state.offset - amt, available_rect.max.y),
                 );
 
                 let mut ui = egui::Ui::new(
@@ -192,6 +203,15 @@ impl<'r, T> Nav<'r, T> {
                     ..*self
                 };
                 let _r = show_route(&mut ui, &nav);
+
+                state.popped_min_rect = Some(ui.min_rect());
+
+                if amt < 0.0 {
+                    ui.ctx().transform_layer_shapes(
+                        ui.layer_id(),
+                        TSTransform::from_translation(Vec2::new(amt, 0.0)),
+                    );
+                }
             }
 
             // foreground layer
@@ -238,4 +258,8 @@ fn chevron(ui: &mut egui::Ui, pad: f32, size: Vec2, stroke: impl Into<Stroke>) -
     painter.line_segment([apex, bottom], stroke);
 
     r
+}
+
+fn springy(offset: f32) -> f32 {
+    ((offset.abs().powf(1.2) - 1.0) * 0.1).max(0.5)
 }

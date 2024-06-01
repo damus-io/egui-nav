@@ -1,5 +1,6 @@
 use eframe::egui;
-use egui::{Direction, Frame, Layout};
+use egui::Frame;
+use egui_demo_lib::{easy_mark::EasyMarkEditor, ColorTest};
 use egui_nav::Nav;
 use std::fmt;
 
@@ -37,15 +38,15 @@ fn main() {
 struct MyApp {}
 
 enum Route {
-    Home,
-    Profile(String),
+    Editor,
+    ColorTest,
 }
 
 impl fmt::Display for Route {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Route::Home => write!(f, "Home"),
-            Route::Profile(name) => write!(f, "{}'s Profile", name),
+            Route::Editor => write!(f, "Editor"),
+            Route::ColorTest => write!(f, "Color Test"),
         }
     }
 }
@@ -56,11 +57,11 @@ impl eframe::App for MyApp {
             .frame(Frame::none())
             .show(ctx, |ui| {
                 ui.visuals_mut().interact_cursor = Some(egui::CursorIcon::PointingHand);
-                let route = &[Route::Home, Route::Profile("bob".to_string())];
+                let route = &[Route::Editor, Route::ColorTest];
                 Nav::new(route).show(ui, |ui, nav| match nav.top() {
-                    Route::Home => ui.label("Home body"),
-                    Route::Profile(name) => ui.label("Profile body"),
-                });
+                    Route::Editor => EasyMarkEditor::default().ui(ui),
+                    Route::ColorTest => ColorTest::default().ui(ui),
+                })
             });
     }
 }
