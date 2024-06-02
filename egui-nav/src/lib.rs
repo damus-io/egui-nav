@@ -138,8 +138,8 @@ impl<'r, T> Nav<'r, T> {
         header_rect.set_height(self.chevron_size.y + 4.0);
 
         let response = if let Some(back) = back {
-            Some(
-                ui.horizontal(|ui| {
+            Some(ui.put(header_rect, |ui: &mut egui::Ui| {
+                ui.horizontal_centered(|ui| {
                     let chev_response = chevron(ui, self.padding, self.chevron_size, self.stroke);
 
                     let label_response = ui.add(
@@ -158,8 +158,8 @@ impl<'r, T> Nav<'r, T> {
 
                     response
                 })
-                .inner,
-            )
+                .inner
+            }))
         } else {
             None
         };
@@ -168,6 +168,8 @@ impl<'r, T> Nav<'r, T> {
             ui.vertical_centered_justified(|ui| ui.add(egui::Label::new(label).selectable(false)))
                 .inner
         });
+
+        ui.advance_cursor_after_rect(header_rect);
 
         response
     }
