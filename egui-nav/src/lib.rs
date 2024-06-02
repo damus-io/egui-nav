@@ -1,7 +1,5 @@
 use core::fmt::Display;
-use egui::{
-    emath::TSTransform, pos2, vec2, Color32, LayerId, Order, Pos2, Rect, Sense, Stroke, Vec2,
-};
+use egui::{emath::TSTransform, vec2, Color32, LayerId, Order, Pos2, Rect, Sense, Stroke, Vec2};
 
 pub struct Nav<'r, T> {
     /// The back chevron stroke
@@ -11,14 +9,43 @@ pub struct Nav<'r, T> {
     route: &'r [T],
 }
 
+#[derive(Clone, Copy, Debug)]
 pub enum NavAction {
-    Returning(f32),
+    /// We're returning to the previous view
+    Returning,
+
+    /// We released the drag, but not far enough to actually return
+    Resetting,
+
+    /// We're dragging the view. We're not making a return decision yet
+    Dragging,
+
+    /// We've returning to the previous view. Pop your route!
+    Returned,
+}
+
+impl NavAction {
+    fn is_transitioning(&self) -> bool {
+        match self {
+            NavAction::Returning => true,
+            NavAction::Resetting => true,
+            NavAction::Dragging => true,
+            NavAction::Returned => false,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
 struct State {
     offset: f32,
+    action: Option<NavAction>,
     popped_min_rect: Option<Rect>,
+}
+
+impl State {
+    fn is_transitioning(&self) -> bool {
+        self.action.map_or(false, |s| s.is_transitioning())
+    }
 }
 
 impl State {
@@ -31,13 +58,10 @@ impl State {
     }
 }
 
-/*
 pub struct NavResponse<R> {
-    inner: R,
-    response: egui::Response,
-    action: Option<NavAction>,
+    pub inner: R,
+    pub action: Option<NavAction>,
 }
-*/
 
 impl<'r, T> Nav<'r, T> {
     /// Nav requires at least one route or it will panic
@@ -87,7 +111,12 @@ impl<'r, T> Nav<'r, T> {
     ///   - routes.top_n(1) for the route immediate before the top route, Route::Home
     ///
     pub fn top_n(&self, n: usize) -> Option<&T> {
-        self.route.get(self.route.len() - 1 - n)
+        let ind = self.route.len() as i32 - (n as i32) - 1;
+        if ind < 0 {
+            None
+        } else {
+            self.route.get(ind as usize)
+        }
     }
 
     /// Safer version of new if we're not sure if we will have non-empty routes
@@ -99,15 +128,18 @@ impl<'r, T> Nav<'r, T> {
         }
     }
 
+    fn header_label(ui: &mut egui::Ui, label: String) -> egui::Response {
+        ui.add(
+            egui::Label::new(label)
+                .sense(Sense::click())
+                .selectable(false),
+        )
+    }
+
     fn header(&self, ui: &mut egui::Ui, label: String) -> egui::Response {
         ui.horizontal(|ui| {
             let r = chevron(ui, self.padding, self.chevron_size, self.stroke);
-            let label_response = ui.add(
-                egui::Label::new(label)
-                    .sense(Sense::click())
-                    .selectable(false),
-            );
-
+            let label_response = Self::header_label(ui, label);
             let response = r.union(label_response);
 
             if let Some(cursor) = ui.visuals().interact_cursor {
@@ -116,129 +148,179 @@ impl<'r, T> Nav<'r, T> {
                 }
             }
 
-            if response.clicked() {}
-
             response
         })
         .inner
     }
 
-    pub fn show<F, R>(&self, ui: &mut egui::Ui, show_route: F) -> R
+    pub fn show<F, R>(&self, ui: &mut egui::Ui, show_route: F) -> NavResponse<R>
     where
         F: Fn(&mut egui::Ui, &Nav<'_, T>) -> R,
         T: Display,
     {
-        if let Some(under) = self.top_n(1) {
-            let _r = self.header(ui, under.to_string());
-        }
-
         let id = ui.id().with("nav");
         let mut state = State::load(ui.ctx(), id).unwrap_or_default();
+
+        if let Some(under) = self.top_n(1) {
+            if self.header(ui, under.to_string()).clicked() {
+                state.action = Some(NavAction::Returning);
+            }
+        } else {
+            assert!(self.route.len() == 1);
+            Self::header_label(ui, self.top().to_string());
+        }
+
         let available_rect = ui.available_rect_before_wrap();
 
-        // Drag contents to transition back.
-        // We must do this BEFORE adding content to the `Nav`,
-        // or we will steal input from the widgets we contain.
-        let content_response = ui.interact(available_rect, id.with("drag"), Sense::drag());
+        // We only handle dragging when there is more than 1 route
+        if self.route.len() > 1 {
+            // Drag contents to transition back.
+            // We must do this BEFORE adding content to the `Nav`,
+            // or we will steal input from the widgets we contain.
+            let content_response = ui.interact(available_rect, id.with("drag"), Sense::drag());
+            if content_response.dragged() {
+                state.action = Some(NavAction::Dragging)
+            } else if content_response.drag_stopped() {
+                // we've stopped dragging, check to see if the offset is
+                // passed a certain point, to determine if we should return
+                // or animate back
 
-        if content_response.dragged() {
-            state.offset += ui.input(|input| input.pointer.delta()).x;
-        } else {
-            // If we're not dragging, animate the current offset back to
-            // the current or previous view depending on how much we are
-            // offset
-
-            let abs_offset = state.offset.abs();
-            if abs_offset > 0.0 {
-                let sgn = state.offset.signum();
-                let amt = springy(state.offset);
-                let adj = amt * sgn;
-                let adjusted = state.offset - adj;
-
-                // if adjusting will flip a sign, then just set to 0
-                state.offset = if (state.offset - adj).signum() != sgn {
-                    0.0
+                if state.offset > available_rect.width() / 2.0 {
+                    state.action = Some(NavAction::Returning)
                 } else {
-                    adjusted
-                };
+                    state.action = Some(NavAction::Resetting)
+                }
+            }
+        }
 
-                // since we're animating we need to request a repaint
-                ui.ctx().request_repaint();
+        if let Some(action) = state.action {
+            match action {
+                NavAction::Dragging => {
+                    state.offset += ui.input(|input| input.pointer.delta()).x;
+                }
+                NavAction::Returned => {
+                    state.action = None;
+                }
+                NavAction::Returning => {
+                    // We're returning, move the current view off to the
+                    // right until the entire view is gone.
+
+                    if let Some(offset) =
+                        spring_animate(state.offset, available_rect.width(), false)
+                    {
+                        ui.ctx().request_repaint();
+                        state.offset = offset;
+                    } else {
+                        state.offset = 0.0;
+                        state.action = Some(NavAction::Returned);
+                    }
+                }
+                NavAction::Resetting => {
+                    // If we're resetting, animate the current offset
+                    // back to the current view
+
+                    if let Some(offset) = spring_animate(state.offset, 0.0, true) {
+                        ui.ctx().request_repaint();
+                        state.offset = offset;
+                    } else {
+                        state.action = None
+                    }
+                }
             }
         }
 
         state.store(ui.ctx(), id);
 
+        // we're not transitioning, so just render and quick exit
+        /*
+        if !state.is_transitioning() {
+            let inner = show_route(ui, self);
+            return NavResponse {
+                inner,
+                action: state.action,
+            };
+        }
+        */
+
         // transition rendering
-        if state.offset > 0.0 && self.route.len() >= 2 {
-            // behind transition layer
-            {
-                let id = ui.id().with("behind");
-                let min_rect = state.popped_min_rect.unwrap_or(available_rect);
-                let progress = state.offset / available_rect.width();
-                let initial_shift = -min_rect.width() * 0.1;
-                let mut amt = initial_shift + springy(state.offset);
-                if amt > 0.0 {
-                    amt = 0.0;
-                }
 
-                //let clip_width = state.offset.max(available_rect.width());
-                let clip = Rect::from_min_size(
-                    available_rect.min,
-                    vec2(state.offset - amt, available_rect.max.y),
+        // behind transition layer
+        if state.is_transitioning() {
+            let id = ui.id().with("behind");
+            let min_rect = state.popped_min_rect.unwrap_or(available_rect);
+            let initial_shift = -min_rect.width() * 0.1;
+            let mut amt = initial_shift + springy(state.offset);
+            if amt > 0.0 {
+                amt = 0.0;
+            }
+
+            //let clip_width = state.offset.max(available_rect.width());
+            let clip = Rect::from_min_size(
+                available_rect.min,
+                vec2(state.offset - amt, available_rect.max.y),
+            );
+
+            let mut ui = egui::Ui::new(
+                ui.ctx().clone(),
+                LayerId::new(Order::Background, id),
+                id,
+                available_rect,
+                clip,
+            );
+
+            // render the previous nav view in the background when
+            // transitioning
+            let nav = Nav {
+                route: &self.route[..self.route.len() - 1],
+                ..*self
+            };
+            let _r = show_route(&mut ui, &nav);
+
+            state.popped_min_rect = Some(ui.min_rect());
+
+            if amt < 0.0 {
+                ui.ctx().transform_layer_shapes(
+                    ui.layer_id(),
+                    TSTransform::from_translation(Vec2::new(amt, 0.0)),
                 );
+            }
+        }
 
-                let mut ui = egui::Ui::new(
-                    ui.ctx().clone(),
-                    LayerId::new(Order::Foreground, id),
-                    id,
-                    available_rect,
-                    clip,
-                );
+        // foreground layer
+        {
+            let id = ui.id().with("front");
 
-                // render the previous nav view in the background when
-                // transitioning
+            let mut ui = egui::Ui::new(
+                ui.ctx().clone(),
+                LayerId::new(Order::Foreground, id),
+                id,
+                available_rect,
+                available_rect,
+            );
+
+            let inner = if let Some(NavAction::Returned) = state.action {
+                // to avoid a flicker, render the popped route when we
+                // are in the returned state
                 let nav = Nav {
                     route: &self.route[..self.route.len() - 1],
                     ..*self
                 };
-                let _r = show_route(&mut ui, &nav);
+                show_route(&mut ui, &nav)
+            } else {
+                show_route(&mut ui, self)
+            };
 
-                state.popped_min_rect = Some(ui.min_rect());
-
-                if amt < 0.0 {
-                    ui.ctx().transform_layer_shapes(
-                        ui.layer_id(),
-                        TSTransform::from_translation(Vec2::new(amt, 0.0)),
-                    );
-                }
-            }
-
-            // foreground layer
-            {
-                let id = ui.id().with("front");
-
-                let mut ui = egui::Ui::new(
-                    ui.ctx().clone(),
-                    LayerId::new(Order::Foreground, id),
-                    id,
-                    available_rect,
-                    available_rect,
-                );
-
-                // render the previous nav view in the background when
-                // transitioning
-                let r = show_route(&mut ui, self);
-
+            if state.offset != 0.0 {
                 ui.ctx().transform_layer_shapes(
                     ui.layer_id(),
                     egui::emath::TSTransform::from_translation(Vec2::new(state.offset, 0.0)),
                 );
-
-                r
             }
-        } else {
-            show_route(ui, self)
+
+            NavResponse {
+                inner,
+                action: state.action,
+            }
         }
     }
 }
@@ -262,4 +344,24 @@ fn chevron(ui: &mut egui::Ui, pad: f32, size: Vec2, stroke: impl Into<Stroke>) -
 
 fn springy(offset: f32) -> f32 {
     ((offset.abs().powf(1.2) - 1.0) * 0.1).max(0.5)
+}
+
+fn spring_animate(offset: f32, target: f32, left: bool) -> Option<f32> {
+    let abs_offset = (offset - target).abs();
+    if abs_offset > 0.0 {
+        let sgn = (offset - target).signum();
+        let amt = springy(abs_offset);
+        let adj = amt * (if left { -1.0 } else { 1.0 });
+        let adjusted = offset + adj;
+
+        // if adjusting will flip a sign, then just set to 0
+        if (offset - adj - target).signum() != sgn {
+            None
+        } else {
+            Some(adjusted)
+        }
+    } else {
+        // we've reset, we're not in any specific state anymore
+        None
+    }
 }

@@ -1,8 +1,12 @@
 use eframe::egui;
 use egui::Frame;
 use egui_demo_lib::{easy_mark::EasyMarkEditor, ColorTest};
-use egui_nav::Nav;
+use egui_nav::{Nav, NavAction};
 use std::fmt;
+
+fn test_routes() -> Vec<Route> {
+    vec![Route::Editor, Route::ColorTest, Route::Editor]
+}
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> Result<(), eframe::Error> {
@@ -11,7 +15,15 @@ fn main() -> Result<(), eframe::Error> {
         viewport: egui::ViewportBuilder::default().with_inner_size([600.0, 800.0]),
         ..Default::default()
     };
-    eframe::run_native("Nav Demo", options, Box::new(|_cc| Box::<MyApp>::default()))
+    eframe::run_native(
+        "Nav Demo",
+        options,
+        Box::new(|_cc| {
+            Box::new(MyApp {
+                routes: test_routes(),
+            })
+        }),
+    )
 }
 
 // When compiling to web using trunk:
@@ -27,7 +39,11 @@ fn main() {
             .start(
                 "the_canvas_id", // hardcode it
                 web_options,
-                Box::new(|cc| Box::<MyApp>::default()),
+                Box::new(|cc| {
+                    Box::new(MyApp {
+                        routes: test_routes(),
+                    })
+                }),
             )
             .await
             .expect("failed to start eframe");
@@ -35,8 +51,11 @@ fn main() {
 }
 
 #[derive(Default)]
-struct MyApp {}
+struct MyApp {
+    routes: Vec<Route>,
+}
 
+#[derive(Copy, Clone, Debug)]
 enum Route {
     Editor,
     ColorTest,
@@ -57,11 +76,17 @@ impl eframe::App for MyApp {
             .frame(Frame::none())
             .show(ctx, |ui| {
                 ui.visuals_mut().interact_cursor = Some(egui::CursorIcon::PointingHand);
-                let route = &[Route::Editor, Route::ColorTest];
-                Nav::new(route).show(ui, |ui, nav| match nav.top() {
+                let response = Nav::new(&self.routes).show(ui, |ui, nav| match nav.top() {
                     Route::Editor => EasyMarkEditor::default().ui(ui),
                     Route::ColorTest => ColorTest::default().ui(ui),
-                })
+                });
+
+                if let Some(action) = response.action {
+                    if let NavAction::Returned = action {
+                        self.routes.pop();
+                        println!("Popped route {:?}", self.routes);
+                    }
+                }
             });
     }
 }
