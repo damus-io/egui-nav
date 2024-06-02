@@ -128,29 +128,48 @@ impl<'r, T> Nav<'r, T> {
         }
     }
 
-    fn header_label(ui: &mut egui::Ui, label: String) -> egui::Response {
-        ui.add(
-            egui::Label::new(label)
-                .sense(Sense::click())
-                .selectable(false),
-        )
-    }
+    fn header(
+        &self,
+        ui: &mut egui::Ui,
+        label: String,
+        back: Option<String>,
+    ) -> Option<egui::Response> {
+        let mut header_rect = ui.available_rect_before_wrap();
+        header_rect.set_height(self.chevron_size.y + 4.0);
 
-    fn header(&self, ui: &mut egui::Ui, label: String) -> egui::Response {
-        ui.horizontal(|ui| {
-            let r = chevron(ui, self.padding, self.chevron_size, self.stroke);
-            let label_response = Self::header_label(ui, label);
-            let response = r.union(label_response);
+        let response = if let Some(back) = back {
+            Some(
+                ui.horizontal(|ui| {
+                    let chev_response = chevron(ui, self.padding, self.chevron_size, self.stroke);
 
-            if let Some(cursor) = ui.visuals().interact_cursor {
-                if response.hovered() {
-                    ui.ctx().set_cursor_icon(cursor);
-                }
-            }
+                    let label_response = ui.add(
+                        egui::Label::new(back)
+                            .sense(Sense::click())
+                            .selectable(false),
+                    );
 
-            response
-        })
-        .inner
+                    let response = chev_response.union(label_response);
+
+                    if let Some(cursor) = ui.visuals().interact_cursor {
+                        if response.hovered() {
+                            ui.ctx().set_cursor_icon(cursor);
+                        }
+                    }
+
+                    response
+                })
+                .inner,
+            )
+        } else {
+            None
+        };
+
+        ui.put(header_rect, |ui: &mut egui::Ui| {
+            ui.vertical_centered_justified(|ui| ui.add(egui::Label::new(label).selectable(false)))
+                .inner
+        });
+
+        response
     }
 
     pub fn show<F, R>(&self, ui: &mut egui::Ui, show_route: F) -> NavResponse<R>
@@ -161,13 +180,14 @@ impl<'r, T> Nav<'r, T> {
         let id = ui.id().with("nav");
         let mut state = State::load(ui.ctx(), id).unwrap_or_default();
 
-        if let Some(under) = self.top_n(1) {
-            if self.header(ui, under.to_string()).clicked() {
+        if let Some(resp) = self.header(
+            ui,
+            self.top().to_string(),
+            self.top_n(1).map(|r| r.to_string()),
+        ) {
+            if resp.clicked() {
                 state.action = Some(NavAction::Returning);
             }
-        } else {
-            assert!(self.route.len() == 1);
-            Self::header_label(ui, self.top().to_string());
         }
 
         let available_rect = ui.available_rect_before_wrap();
