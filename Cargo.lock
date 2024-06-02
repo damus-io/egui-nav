@@ -1619,14 +1619,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "egui-nav"
-version = "0.1.0"
-dependencies = [
- "egui",
- "egui_extras",
-]
-
-[[package]]
 name = "egui-wgpu"
 version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1701,6 +1693,14 @@ dependencies = [
  "wasm-bindgen",
  "web-sys",
  "winit",
+]
+
+[[package]]
+name = "egui_nav"
+version = "0.1.0"
+dependencies = [
+ "egui",
+ "egui_extras",
 ]
 
 [[package]]
@@ -3214,8 +3214,8 @@ dependencies = [
  "console_error_panic_hook",
  "eframe",
  "egui",
- "egui-nav",
  "egui_demo_lib",
+ "egui_nav",
  "env_logger",
  "log",
  "tracing-subscriber",

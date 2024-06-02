@@ -7,6 +7,6 @@ edition = "2021"
 license = "MIT"
 
 [workspace.dependencies]
-egui-nav = { path = "egui-nav" }
+egui_nav = { path = "egui-nav" }
 egui = "*"
  
