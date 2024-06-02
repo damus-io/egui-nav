@@ -1,12 +1,12 @@
 use core::fmt::Display;
 use egui::{emath::TSTransform, vec2, Color32, LayerId, Order, Pos2, Rect, Sense, Stroke, Vec2};
 
-pub struct Nav<'r, T> {
+pub struct Nav<T: Clone> {
     /// The back chevron stroke
     padding: f32,
     stroke: Option<Stroke>,
     chevron_size: Vec2,
-    route: &'r [T],
+    route: Vec<T>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -63,9 +63,9 @@ pub struct NavResponse<R> {
     pub action: Option<NavAction>,
 }
 
-impl<'r, T> Nav<'r, T> {
+impl<T: Clone> Nav<T> {
     /// Nav requires at least one route or it will panic
-    pub fn new(route: &'r [T]) -> Self {
+    pub fn new(route: Vec<T>) -> Self {
         // precondition: we must have at least one route. this simplifies
         // the rest of the control, and it's easy to catchbb
         assert!(route.len() > 0, "Nav routes cannot be empty");
@@ -98,7 +98,7 @@ impl<'r, T> Nav<'r, T> {
     }
 
     /// Nav guarantees there is at least one route element
-    pub fn top(&self) -> &'r T {
+    pub fn top(&self) -> &T {
         &self.route[self.route.len() - 1]
     }
 
@@ -121,7 +121,7 @@ impl<'r, T> Nav<'r, T> {
     }
 
     /// Safer version of new if we're not sure if we will have non-empty routes
-    pub fn try_new(route: &'r [T]) -> Option<Self> {
+    pub fn try_new(route: Vec<T>) -> Option<Self> {
         if route.len() == 0 {
             None
         } else {
@@ -181,8 +181,8 @@ impl<'r, T> Nav<'r, T> {
 
     pub fn show<F, R>(&self, ui: &mut egui::Ui, show_route: F) -> NavResponse<R>
     where
-        F: Fn(&mut egui::Ui, &Nav<'_, T>) -> R,
-        T: Display,
+        F: Fn(&mut egui::Ui, &Nav<T>) -> R,
+        T: Display + Clone,
     {
         let id = ui.id().with("nav");
         let mut state = State::load(ui.ctx(), id).unwrap_or_default();
@@ -298,7 +298,7 @@ impl<'r, T> Nav<'r, T> {
             // render the previous nav view in the background when
             // transitioning
             let nav = Nav {
-                route: &self.route[..self.route.len() - 1],
+                route: self.route[..self.route.len() - 1].to_vec(),
                 ..*self
             };
             let _r = show_route(&mut ui, &nav);
@@ -329,7 +329,7 @@ impl<'r, T> Nav<'r, T> {
                 // to avoid a flicker, render the popped route when we
                 // are in the returned state
                 let nav = Nav {
-                    route: &self.route[..self.route.len() - 1],
+                    route: self.route[..self.route.len() - 1].to_vec(),
                     ..*self
                 };
                 show_route(&mut ui, &nav)
