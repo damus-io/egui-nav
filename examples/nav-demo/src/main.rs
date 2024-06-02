@@ -76,7 +76,8 @@ impl eframe::App for MyApp {
             .frame(Frame::none())
             .show(ctx, |ui| {
                 ui.visuals_mut().interact_cursor = Some(egui::CursorIcon::PointingHand);
-                let response = Nav::new(&self.routes).show(ui, |ui, nav| match nav.top() {
+                let ctx = ();
+                let response = Nav::new(&self.routes, &ctx).show(ui, |ui, nav| match nav.top() {
                     Route::Editor => EasyMarkEditor::default().ui(ui),
                     Route::ColorTest => ColorTest::default().ui(ui),
                 });

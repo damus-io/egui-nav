@@ -1,12 +1,13 @@
 use core::fmt::Display;
 use egui::{emath::TSTransform, vec2, Color32, LayerId, Order, Pos2, Rect, Sense, Stroke, Vec2};
 
-pub struct Nav<'r, T> {
+pub struct Nav<'r, 'c, T, A> {
     /// The back chevron stroke
     padding: f32,
     stroke: Option<Stroke>,
     chevron_size: Vec2,
     route: &'r [T],
+    context: &'c A,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -63,9 +64,9 @@ pub struct NavResponse<R> {
     pub action: Option<NavAction>,
 }
 
-impl<'r, T> Nav<'r, T> {
+impl<'r, 'c, T, A> Nav<'r, 'c, T, A> {
     /// Nav requires at least one route or it will panic
-    pub fn new(route: &'r [T]) -> Self {
+    pub fn new(route: &'r [T], context: &'c A) -> Self {
         // precondition: we must have at least one route. this simplifies
         // the rest of the control, and it's easy to catchbb
         assert!(route.len() > 0, "Nav routes cannot be empty");
@@ -79,7 +80,12 @@ impl<'r, T> Nav<'r, T> {
             stroke,
             chevron_size,
             route,
+            context,
         }
+    }
+
+    pub fn context(&self) -> &A {
+        &self.context
     }
 
     pub fn chevron_padding(mut self, padding: f32) -> Self {
@@ -121,11 +127,11 @@ impl<'r, T> Nav<'r, T> {
     }
 
     /// Safer version of new if we're not sure if we will have non-empty routes
-    pub fn try_new(route: &'r [T]) -> Option<Self> {
+    pub fn try_new(route: &'r [T], context: &'c A) -> Option<Self> {
         if route.len() == 0 {
             None
         } else {
-            Some(Nav::new(route))
+            Some(Nav::new(route, context))
         }
     }
 
@@ -181,7 +187,7 @@ impl<'r, T> Nav<'r, T> {
 
     pub fn show<F, R>(&self, ui: &mut egui::Ui, show_route: F) -> NavResponse<R>
     where
-        F: Fn(&mut egui::Ui, &Nav<'_, T>) -> R,
+        F: Fn(&mut egui::Ui, &Nav<'_, '_, T, A>) -> R,
         T: Display,
     {
         let id = ui.id().with("nav");
