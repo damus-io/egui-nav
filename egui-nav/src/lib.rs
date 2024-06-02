@@ -4,7 +4,7 @@ use egui::{emath::TSTransform, vec2, Color32, LayerId, Order, Pos2, Rect, Sense,
 pub struct Nav<'r, T> {
     /// The back chevron stroke
     padding: f32,
-    stroke: Stroke,
+    stroke: Option<Stroke>,
     chevron_size: Vec2,
     route: &'r [T],
 }
@@ -70,7 +70,8 @@ impl<'r, T> Nav<'r, T> {
         // the rest of the control, and it's easy to catchbb
         assert!(route.len() > 0, "Nav routes cannot be empty");
         let chevron_size = Vec2::new(14.0, 20.0);
-        let stroke = Stroke::new(2.0, Color32::GOLD);
+        //let stroke = Stroke::new(2.0, Color32::GOLD);
+        let stroke: Option<Stroke> = None;
         let padding = 4.0;
 
         Nav {
@@ -87,7 +88,7 @@ impl<'r, T> Nav<'r, T> {
     }
 
     pub fn stroke(mut self, stroke: impl Into<Stroke>) -> Self {
-        self.stroke = stroke.into();
+        self.stroke = Some(stroke.into());
         self
     }
 
@@ -140,7 +141,11 @@ impl<'r, T> Nav<'r, T> {
         let response = if let Some(back) = back {
             Some(ui.put(header_rect, |ui: &mut egui::Ui| {
                 ui.horizontal_centered(|ui| {
-                    let chev_response = chevron(ui, self.padding, self.chevron_size, self.stroke);
+                    let stroke = self
+                        .stroke
+                        .unwrap_or_else(|| Stroke::new(2.0, ui.visuals().hyperlink_color));
+
+                    let chev_response = chevron(ui, self.padding, self.chevron_size, stroke);
 
                     let label_response = ui.add(
                         egui::Label::new(back)
