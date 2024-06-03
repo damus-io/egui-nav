@@ -224,6 +224,9 @@ impl<T: Clone> Nav<T> {
             match action {
                 NavAction::Dragging => {
                     state.offset += ui.input(|input| input.pointer.delta()).x;
+                    if state.offset < 0.0 {
+                        state.offset = 0.0;
+                    }
                 }
                 NavAction::Returned => {
                     state.action = None;
