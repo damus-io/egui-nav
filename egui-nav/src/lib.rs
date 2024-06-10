@@ -1,5 +1,5 @@
 use core::fmt::Display;
-use egui::{emath::TSTransform, vec2, Color32, LayerId, Order, Pos2, Rect, Sense, Stroke, Vec2};
+use egui::{emath::TSTransform, vec2, LayerId, Order, Pos2, Rect, Sense, Stroke, Vec2};
 
 pub struct Nav<T: Clone> {
     /// The back chevron stroke
@@ -263,21 +263,10 @@ impl<T: Clone> Nav<T> {
 
         state.store(ui.ctx(), id);
 
-        // we're not transitioning, so just render and quick exit
-        /*
-        if !state.is_transitioning() {
-            let inner = show_route(ui, self);
-            return NavResponse {
-                inner,
-                action: state.action,
-            };
-        }
-        */
-
         // transition rendering
-
         // behind transition layer
-        if state.is_transitioning() {
+        let transitioning = state.is_transitioning();
+        if transitioning {
             let id = ui.id().with("behind");
             let min_rect = state.popped_min_rect.unwrap_or(available_rect);
             let initial_shift = -min_rect.width() * 0.1;
@@ -322,9 +311,20 @@ impl<T: Clone> Nav<T> {
         {
             let id = ui.id().with("front");
 
+            let layer_id = if transitioning {
+                // when transitioning, we need a new layer id otherwise the
+                // view transform will transform more things than we want
+                LayerId::new(Order::Foreground, id)
+            } else {
+                // if we don't use the same layer id as the ui, then we
+                // will have scrollview mousescroll issues due to the way
+                // rect_contains_pointer works with overlapping layers
+                ui.layer_id()
+            };
+
             let mut ui = egui::Ui::new(
                 ui.ctx().clone(),
-                LayerId::new(Order::Foreground, id),
+                layer_id,
                 id,
                 available_rect,
                 available_rect,
