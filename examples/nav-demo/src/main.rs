@@ -85,7 +85,9 @@ fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
                         navigating = Some(Route::ColorTest);
                     }
 
-                    EasyMarkEditor::default().ui(ui);
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        EasyMarkEditor::default().ui(ui);
+                    });
                     navigating
                 })
                 .inner
