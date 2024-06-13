@@ -3215,6 +3215,7 @@ dependencies = [
  "eframe",
  "egui",
  "egui_demo_lib",
+ "egui_extras",
  "egui_nav",
  "env_logger",
  "log",

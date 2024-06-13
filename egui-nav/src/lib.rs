@@ -361,7 +361,10 @@ impl<T: Clone> Nav<T> {
 
             let clip = Rect::from_min_size(
                 available_rect.min,
-                vec2(available_rect.max.x - state.offset, available_rect.max.y),
+                vec2(
+                    available_rect.max.x - available_rect.min.x - state.offset,
+                    available_rect.max.y,
+                ),
             );
 
             let mut ui = egui::Ui::new(ui.ctx().clone(), layer_id, id, available_rect, clip);

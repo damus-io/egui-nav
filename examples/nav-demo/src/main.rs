@@ -72,54 +72,77 @@ impl fmt::Display for Route {
     }
 }
 
+fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
+    ui.visuals_mut().interact_cursor = Some(egui::CursorIcon::PointingHand);
+
+    let response = Nav::new(app.routes.clone())
+        .navigating(app.navigating)
+        .show(ui, |ui, nav| match nav.top() {
+            Route::Editor => {
+                ui.vertical(|ui| {
+                    let mut navigating: Option<Route> = None;
+                    if ui.button("Color Test").clicked() {
+                        navigating = Some(Route::ColorTest);
+                    }
+
+                    EasyMarkEditor::default().ui(ui);
+                    navigating
+                })
+                .inner
+            }
+
+            Route::ColorTest => {
+                ui.vertical(|ui| {
+                    let mut navigating: Option<Route> = None;
+                    if ui.button("Editor").clicked() {
+                        navigating = Some(Route::Editor);
+                    }
+                    ColorTest::default().ui(ui);
+                    navigating
+                })
+                .inner
+            }
+        });
+
+    if let Some(nav) = response.inner {
+        app.navigating = true;
+        app.routes.push(nav);
+    }
+
+    if let Some(action) = response.action {
+        if let NavAction::Returned = action {
+            app.routes.pop();
+            println!("Popped route {:?}", app.routes);
+        } else if let NavAction::Navigated = action {
+            app.navigating = false;
+        }
+    }
+}
+
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default()
             .frame(Frame::none().outer_margin(egui::Margin::same(50.0)))
             .show(ctx, |ui| {
-                ui.visuals_mut().interact_cursor = Some(egui::CursorIcon::PointingHand);
-                let response = Nav::new(self.routes.clone())
-                    .navigating(self.navigating)
-                    .show(ui, |ui, nav| match nav.top() {
-                        Route::Editor => {
-                            ui.vertical(|ui| {
-                                let mut navigating: Option<Route> = None;
-                                if ui.button("Color Test").clicked() {
-                                    navigating = Some(Route::ColorTest);
-                                }
+                let cells = 2;
+                let width = ui.available_rect_before_wrap().width() / (cells as f32);
 
-                                EasyMarkEditor::default().ui(ui);
-                                navigating
-                            })
-                            .inner
-                        }
+                egui_extras::StripBuilder::new(ui)
+                    .sizes(egui_extras::Size::exact(width), cells)
+                    .clip(false)
+                    .horizontal(|mut strip| {
+                        strip.cell(|ui| {
+                            nav_ui(ui, self);
+                        });
 
-                        Route::ColorTest => {
-                            ui.vertical(|ui| {
-                                let mut navigating: Option<Route> = None;
-                                if ui.button("Editor").clicked() {
-                                    navigating = Some(Route::Editor);
-                                }
-                                ColorTest::default().ui(ui);
-                                navigating
-                            })
-                            .inner
-                        }
-                    });
-
-                if let Some(nav) = response.inner {
-                    self.navigating = true;
-                    self.routes.push(nav);
-                }
-
-                if let Some(action) = response.action {
-                    if let NavAction::Returned = action {
-                        self.routes.pop();
-                        println!("Popped route {:?}", self.routes);
-                    } else if let NavAction::Navigated = action {
-                        self.navigating = false;
-                    }
-                }
+                        strip.cell(|ui| {
+                            ui.painter().rect_filled(
+                                ui.available_rect_before_wrap(),
+                                0.0,
+                                egui::Color32::from_rgb(0x20, 0x20, 0x20),
+                            );
+                        });
+                    })
             });
     }
 }
