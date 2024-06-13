@@ -319,8 +319,9 @@ impl<T: Clone> Nav<T> {
 
             let mut ui = egui::Ui::new(
                 ui.ctx().clone(),
+                //LayerId::new(Order::Background, id),
                 LayerId::new(Order::Background, id),
-                id,
+                ui.id(),
                 available_rect,
                 clip,
             );
@@ -367,7 +368,7 @@ impl<T: Clone> Nav<T> {
                 ),
             );
 
-            let mut ui = egui::Ui::new(ui.ctx().clone(), layer_id, id, available_rect, clip);
+            let mut ui = egui::Ui::new(ui.ctx().clone(), layer_id, ui.id(), available_rect, clip);
 
             let inner = if let Some(NavAction::Returned) = state.action {
                 // to avoid a flicker, render the popped route when we
