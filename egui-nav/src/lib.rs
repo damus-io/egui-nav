@@ -205,13 +205,12 @@ impl<T: Clone> Nav<T> {
         let id = ui.id().with("nav");
         let mut state = State::load(ui.ctx(), id).unwrap_or_default();
 
-        let available_rect = ui.available_rect_before_wrap();
-
         // We only handle dragging when there is more than 1 route
         if self.route.len() > 1 {
             // Drag contents to transition back.
             // We must do this BEFORE adding content to the `Nav`,
             // or we will steal input from the widgets we contain.
+            let available_rect = ui.available_rect_before_wrap();
             let content_response = ui.interact(available_rect, id.with("drag"), Sense::drag());
             if content_response.dragged() {
                 state.action = Some(NavAction::Dragging)
@@ -237,6 +236,8 @@ impl<T: Clone> Nav<T> {
                 state.action = Some(NavAction::Returning);
             }
         }
+
+        let available_rect = ui.available_rect_before_wrap();
 
         // This should probably override other actions?
         if self.navigating {
