@@ -313,8 +313,8 @@ impl<T: Clone> Nav<T> {
 
             //let clip_width = state.offset.max(available_rect.width());
             let clip = Rect::from_min_size(
-                available_rect.min,
-                vec2(state.offset - amt, available_rect.max.y),
+                available_rect.min + egui::vec2(-amt, 0.0),
+                vec2(state.offset, available_rect.max.y),
             );
 
             let mut ui = egui::Ui::new(
@@ -359,13 +359,12 @@ impl<T: Clone> Nav<T> {
                 ui.layer_id()
             };
 
-            let mut ui = egui::Ui::new(
-                ui.ctx().clone(),
-                layer_id,
-                id,
-                available_rect,
-                available_rect,
+            let clip = Rect::from_min_size(
+                available_rect.min,
+                vec2(available_rect.max.x - state.offset, available_rect.max.y),
             );
+
+            let mut ui = egui::Ui::new(ui.ctx().clone(), layer_id, id, available_rect, clip);
 
             let inner = if let Some(NavAction::Returned) = state.action {
                 // to avoid a flicker, render the popped route when we

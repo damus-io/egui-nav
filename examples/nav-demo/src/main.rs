@@ -75,7 +75,7 @@ impl fmt::Display for Route {
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default()
-            .frame(Frame::none())
+            .frame(Frame::none().outer_margin(egui::Margin::same(50.0)))
             .show(ctx, |ui| {
                 ui.visuals_mut().interact_cursor = Some(egui::CursorIcon::PointingHand);
                 let response = Nav::new(self.routes.clone())
@@ -83,7 +83,6 @@ impl eframe::App for MyApp {
                     .show(ui, |ui, nav| match nav.top() {
                         Route::Editor => {
                             ui.vertical(|ui| {
-                                ui.add_space(50.0);
                                 let mut navigating: Option<Route> = None;
                                 if ui.button("Color Test").clicked() {
                                     navigating = Some(Route::ColorTest);
@@ -97,7 +96,6 @@ impl eframe::App for MyApp {
 
                         Route::ColorTest => {
                             ui.vertical(|ui| {
-                                ui.add_space(50.0);
                                 let mut navigating: Option<Route> = None;
                                 if ui.button("Editor").clicked() {
                                     navigating = Some(Route::Editor);
