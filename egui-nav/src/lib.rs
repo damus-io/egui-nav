@@ -7,9 +7,10 @@ pub struct Nav<T: Clone> {
     stroke: Option<Stroke>,
     chevron_size: Vec2,
     route: Vec<T>,
+    navigating: bool,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NavAction {
     /// We're returning to the previous view
     Returning,
@@ -22,6 +23,12 @@ pub enum NavAction {
 
     /// We've returning to the previous view. Pop your route!
     Returned,
+
+    /// We've navigating to the next view.
+    Navigating,
+
+    /// We're finished navigating, push the route!
+    Navigated,
 }
 
 impl NavAction {
@@ -31,6 +38,8 @@ impl NavAction {
             NavAction::Resetting => true,
             NavAction::Dragging => true,
             NavAction::Returned => false,
+            NavAction::Navigated => false,
+            NavAction::Navigating => true,
         }
     }
 }
@@ -73,8 +82,10 @@ impl<T: Clone> Nav<T> {
         //let stroke = Stroke::new(2.0, Color32::GOLD);
         let stroke: Option<Stroke> = None;
         let padding = 4.0;
+        let navigating = false;
 
         Nav {
+            navigating,
             padding,
             stroke,
             chevron_size,
@@ -89,6 +100,13 @@ impl<T: Clone> Nav<T> {
 
     pub fn stroke(mut self, stroke: impl Into<Stroke>) -> Self {
         self.stroke = Some(stroke.into());
+        self
+    }
+
+    /// Call this when you have just pushed a new value to your route and
+    /// you want to animate to this new view
+    pub fn navigating(mut self, navigating: bool) -> Self {
+        self.navigating = navigating;
         self
     }
 
@@ -187,16 +205,6 @@ impl<T: Clone> Nav<T> {
         let id = ui.id().with("nav");
         let mut state = State::load(ui.ctx(), id).unwrap_or_default();
 
-        if let Some(resp) = self.header(
-            ui,
-            self.top().to_string(),
-            self.top_n(1).map(|r| r.to_string()),
-        ) {
-            if resp.clicked() {
-                state.action = Some(NavAction::Returning);
-            }
-        }
-
         let available_rect = ui.available_rect_before_wrap();
 
         // We only handle dragging when there is more than 1 route
@@ -220,6 +228,24 @@ impl<T: Clone> Nav<T> {
             }
         }
 
+        if let Some(resp) = self.header(
+            ui,
+            self.top().to_string(),
+            self.top_n(1).map(|r| r.to_string()),
+        ) {
+            if resp.clicked() {
+                state.action = Some(NavAction::Returning);
+            }
+        }
+
+        // This should probably override other actions?
+        if self.navigating {
+            if state.action != Some(NavAction::Navigating) {
+                state.offset = available_rect.width();
+                state.action = Some(NavAction::Navigating);
+            }
+        }
+
         if let Some(action) = state.action {
             match action {
                 NavAction::Dragging => {
@@ -230,6 +256,17 @@ impl<T: Clone> Nav<T> {
                 }
                 NavAction::Returned => {
                     state.action = None;
+                }
+                NavAction::Navigated => {
+                    state.action = None;
+                }
+                NavAction::Navigating => {
+                    if let Some(offset) = spring_animate(state.offset, 0.0, true) {
+                        ui.ctx().request_repaint();
+                        state.offset = offset;
+                    } else {
+                        state.action = Some(NavAction::Navigated);
+                    }
                 }
                 NavAction::Returning => {
                     // We're returning, move the current view off to the
@@ -315,8 +352,9 @@ impl<T: Clone> Nav<T> {
                 LayerId::new(Order::Foreground, id)
             } else {
                 // if we don't use the same layer id as the ui, then we
-                // will have scrollview mousescroll issues due to the way
-                // rect_contains_pointer works with overlapping layers
+                // will have scrollview MouseWheel scroll issues due to
+                // the way rect_contains_pointer works with overlapping
+                // layers
                 ui.layer_id()
             };
 

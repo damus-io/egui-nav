@@ -20,6 +20,7 @@ fn main() -> Result<(), eframe::Error> {
         options,
         Box::new(|_cc| {
             Box::new(MyApp {
+                navigating: false,
                 routes: test_routes(),
             })
         }),
@@ -53,6 +54,7 @@ fn main() {
 #[derive(Default)]
 struct MyApp {
     routes: Vec<Route>,
+    navigating: bool,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -76,15 +78,48 @@ impl eframe::App for MyApp {
             .frame(Frame::none())
             .show(ctx, |ui| {
                 ui.visuals_mut().interact_cursor = Some(egui::CursorIcon::PointingHand);
-                let response = Nav::new(self.routes.clone()).show(ui, |ui, nav| match nav.top() {
-                    Route::Editor => EasyMarkEditor::default().ui(ui),
-                    Route::ColorTest => ColorTest::default().ui(ui),
-                });
+                let response = Nav::new(self.routes.clone())
+                    .navigating(self.navigating)
+                    .show(ui, |ui, nav| match nav.top() {
+                        Route::Editor => {
+                            ui.vertical(|ui| {
+                                ui.add_space(50.0);
+                                let mut navigating: Option<Route> = None;
+                                if ui.button("Color Test").clicked() {
+                                    navigating = Some(Route::ColorTest);
+                                }
+
+                                EasyMarkEditor::default().ui(ui);
+                                navigating
+                            })
+                            .inner
+                        }
+
+                        Route::ColorTest => {
+                            ui.vertical(|ui| {
+                                ui.add_space(50.0);
+                                let mut navigating: Option<Route> = None;
+                                if ui.button("Editor").clicked() {
+                                    navigating = Some(Route::Editor);
+                                }
+                                ColorTest::default().ui(ui);
+                                navigating
+                            })
+                            .inner
+                        }
+                    });
+
+                if let Some(nav) = response.inner {
+                    self.navigating = true;
+                    self.routes.push(nav);
+                }
 
                 if let Some(action) = response.action {
                     if let NavAction::Returned = action {
                         self.routes.pop();
                         println!("Popped route {:?}", self.routes);
+                    } else if let NavAction::Navigated = action {
+                        self.navigating = false;
                     }
                 }
             });
