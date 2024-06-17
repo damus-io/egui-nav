@@ -336,7 +336,8 @@ impl<T: Clone> Nav<T> {
 
             state.popped_min_rect = Some(ui.min_rect());
 
-            let alpha = ((1.0 - (state.offset / available_rect.width())) * 127.0) as u8;
+            let strength = 50.0; // fade strength (max is 255)
+            let alpha = ((1.0 - (state.offset / available_rect.width())) * strength) as u8;
             let fade_color = egui::Color32::from_black_alpha(alpha);
 
             ui.painter()
