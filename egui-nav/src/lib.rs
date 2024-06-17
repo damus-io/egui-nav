@@ -336,6 +336,16 @@ impl<T: Clone> Nav<T> {
 
             state.popped_min_rect = Some(ui.min_rect());
 
+            let alpha = ((1.0 - (state.offset / available_rect.width())) * 180.0) as u8;
+            let fade_color = if ui.visuals().dark_mode {
+                egui::Color32::from_black_alpha(alpha)
+            } else {
+                egui::Color32::from_white_alpha(alpha)
+            };
+
+            ui.painter()
+                .rect_filled(clip, egui::Rounding::default(), fade_color);
+
             if amt < 0.0 {
                 ui.ctx().transform_layer_shapes(
                     ui.layer_id(),
