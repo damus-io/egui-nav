@@ -8,6 +8,7 @@ pub struct Nav<T: Clone> {
     chevron_size: Vec2,
     route: Vec<T>,
     navigating: bool,
+    show_title: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -83,14 +84,21 @@ impl<T: Clone> Nav<T> {
         let stroke: Option<Stroke> = None;
         let padding = 4.0;
         let navigating = false;
+        let show_title = true;
 
         Nav {
+            show_title,
             navigating,
             padding,
             stroke,
             chevron_size,
             route,
         }
+    }
+
+    pub fn title(mut self, show: bool) -> Self {
+        self.show_title = show;
+        self
     }
 
     pub fn chevron_padding(mut self, padding: f32) -> Self {
@@ -187,10 +195,14 @@ impl<T: Clone> Nav<T> {
             None
         };
 
-        ui.put(header_rect, |ui: &mut egui::Ui| {
-            ui.vertical_centered_justified(|ui| ui.add(egui::Label::new(label).selectable(false)))
+        if self.show_title {
+            ui.put(header_rect, |ui: &mut egui::Ui| {
+                ui.vertical_centered_justified(|ui| {
+                    ui.add(egui::Label::new(label).selectable(false))
+                })
                 .inner
-        });
+            });
+        }
 
         ui.advance_cursor_after_rect(header_rect);
 
