@@ -9,6 +9,7 @@ pub struct Nav<T: Clone> {
     route: Vec<T>,
     navigating: bool,
     show_title: bool,
+    returning: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -85,10 +86,12 @@ impl<T: Clone> Nav<T> {
         let padding = 4.0;
         let navigating = false;
         let show_title = true;
+        let returning = false;
 
         Nav {
             show_title,
             navigating,
+            returning,
             padding,
             stroke,
             chevron_size,
@@ -118,9 +121,20 @@ impl<T: Clone> Nav<T> {
         self
     }
 
+    /// Call this when you have just invoked an action to return to the
+    /// previous view
+    pub fn returning(mut self, returning: bool) -> Self {
+        self.returning = returning;
+        self
+    }
+
     pub fn chevron_size(mut self, size: Vec2) -> Self {
         self.chevron_size = size;
         self
+    }
+
+    pub fn routes(&self) -> &Vec<T> {
+        &self.route
     }
 
     /// Nav guarantees there is at least one route element
@@ -256,6 +270,10 @@ impl<T: Clone> Nav<T> {
             if state.action != Some(NavAction::Navigating) {
                 state.offset = available_rect.width();
                 state.action = Some(NavAction::Navigating);
+            }
+        } else if self.returning {
+            if state.action != Some(NavAction::Returning) {
+                state.action = Some(NavAction::Returning);
             }
         }
 

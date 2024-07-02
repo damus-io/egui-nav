@@ -21,6 +21,7 @@ fn main() -> Result<(), eframe::Error> {
         Box::new(|_cc| {
             Box::new(MyApp {
                 navigating: false,
+                returning: false,
                 routes: test_routes(),
             })
         }),
@@ -55,6 +56,7 @@ fn main() {
 struct MyApp {
     routes: Vec<Route>,
     navigating: bool,
+    returning: bool,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -72,46 +74,73 @@ impl fmt::Display for Route {
     }
 }
 
+enum OurNavAction {
+    Navigating(Route),
+    Returning,
+}
+
 fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
     ui.visuals_mut().interact_cursor = Some(egui::CursorIcon::PointingHand);
 
     let response = Nav::new(app.routes.clone())
         .navigating(app.navigating)
+        .returning(app.returning)
         .show(ui, |ui, nav| match nav.top() {
             Route::Editor => {
                 ui.vertical(|ui| {
-                    let mut navigating: Option<Route> = None;
+                    let mut action: Option<OurNavAction> = None;
+
                     if ui.button("Color Test").clicked() {
-                        navigating = Some(Route::ColorTest);
+                        action = Some(OurNavAction::Navigating(Route::ColorTest));
+                    }
+
+                    if nav.routes().len() > 1 {
+                        if ui.button("Back").clicked() {
+                            action = Some(OurNavAction::Returning);
+                        }
                     }
 
                     EasyMarkEditor::default().ui(ui);
-                    navigating
+                    action
                 })
                 .inner
             }
 
             Route::ColorTest => {
                 ui.vertical(|ui| {
-                    let mut navigating: Option<Route> = None;
+                    let mut action: Option<OurNavAction> = None;
                     if ui.button("Editor").clicked() {
-                        navigating = Some(Route::Editor);
+                        action = Some(OurNavAction::Navigating(Route::Editor));
+                    }
+                    if nav.routes().len() > 1 {
+                        if ui.button("Back").clicked() {
+                            action = Some(OurNavAction::Returning);
+                        }
                     }
                     ColorTest::default().ui(ui);
-                    navigating
+                    action
                 })
                 .inner
             }
         });
 
-    if let Some(nav) = response.inner {
-        app.navigating = true;
-        app.routes.push(nav);
+    if let Some(action) = response.inner {
+        match action {
+            OurNavAction::Navigating(route) => {
+                app.navigating = true;
+                app.routes.push(route);
+            }
+
+            OurNavAction::Returning => {
+                app.returning = true;
+            }
+        }
     }
 
     if let Some(action) = response.action {
         if let NavAction::Returned = action {
             app.routes.pop();
+            app.returning = false;
             println!("Popped route {:?}", app.routes);
         } else if let NavAction::Navigated = action {
             app.navigating = false;
