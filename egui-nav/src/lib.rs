@@ -354,6 +354,7 @@ impl<T: Clone> Nav<T> {
                 ui.id(),
                 available_rect,
                 clip,
+                egui::UiStackInfo::default(),
             );
 
             // render the previous nav view in the background when
@@ -405,7 +406,14 @@ impl<T: Clone> Nav<T> {
                 ),
             );
 
-            let mut ui = egui::Ui::new(ui.ctx().clone(), layer_id, ui.id(), available_rect, clip);
+            let mut ui = egui::Ui::new(
+                ui.ctx().clone(),
+                layer_id,
+                ui.id(),
+                available_rect,
+                clip,
+                egui::UiStackInfo::default(),
+            );
 
             let inner = if let Some(NavAction::Returned) = state.action {
                 // to avoid a flicker, render the popped route when we
