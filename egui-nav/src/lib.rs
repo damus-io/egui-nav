@@ -350,7 +350,8 @@ impl<T: Clone> Nav<T> {
             let mut ui = egui::Ui::new(
                 ui.ctx().clone(),
                 //LayerId::new(Order::Background, id),
-                LayerId::new(Order::Background, id),
+                LayerId::new(Order::Middle, id),
+                //ui.layer_id(),
                 ui.id(),
                 available_rect,
                 clip,
