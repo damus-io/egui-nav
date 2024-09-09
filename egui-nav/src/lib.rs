@@ -228,6 +228,23 @@ impl<T: Clone> Nav<T> {
         F: Fn(&mut egui::Ui, &Nav<T>) -> R,
         T: Display + Clone,
     {
+        let mut show_route = show_route;
+        self.show_internal(ui, &mut show_route)
+    }
+
+    pub fn show_mut<F, R>(&self, ui: &mut egui::Ui, mut show_route: F) -> NavResponse<R>
+    where
+        F: FnMut(&mut egui::Ui, &Nav<T>) -> R,
+        T: Display + Clone,
+    {
+        self.show_internal(ui, &mut show_route)
+    }
+
+    fn show_internal<F, R>(&self, ui: &mut egui::Ui, show_route: &mut F) -> NavResponse<R>
+    where
+        F: FnMut(&mut egui::Ui, &Nav<T>) -> R,
+        T: Display + Clone,
+    {
         let id = ui.id().with("nav");
         let mut state = State::load(ui.ctx(), id).unwrap_or_default();
 
