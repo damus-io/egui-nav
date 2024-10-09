@@ -1,15 +1,35 @@
 use core::fmt::Display;
-use egui::{emath::TSTransform, vec2, LayerId, Order, Pos2, Rect, Sense, Stroke, Vec2};
+use egui::{
+    emath::TSTransform, vec2, InnerResponse, LayerId, Order, Pos2, Rect, Sense, Stroke, Vec2,
+};
 
-pub struct Nav<T: Clone> {
-    /// The back chevron stroke
-    padding: f32,
-    stroke: Option<Stroke>,
-    chevron_size: Vec2,
+pub struct Nav<T: Clone, E> {
+    title_height: f32,
     route: Vec<T>,
     navigating: bool,
-    show_title: bool,
+    show_title: Option<
+        fn(
+            ui: &mut egui::Ui,
+            titlebar_allocation: egui::Response,
+            title_name: String,
+            back_name: Option<String>,
+        ) -> InnerResponse<TitleBarResponse<E>>,
+    >,
     returning: bool,
+}
+
+pub struct TitleBarResponse<E> {
+    pub title_response: Option<E>,
+    pub go_back: bool,
+}
+
+impl<E> Default for TitleBarResponse<E> {
+    fn default() -> Self {
+        Self {
+            title_response: None,
+            go_back: false,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -69,48 +89,44 @@ impl State {
     }
 }
 
-pub struct NavResponse<R> {
+pub struct NavResponse<R, E> {
     pub inner: R,
+    pub title_response: Option<E>,
     pub action: Option<NavAction>,
 }
 
-impl<T: Clone> Nav<T> {
+impl<T: Clone, E> Nav<T, E> {
     /// Nav requires at least one route or it will panic
     pub fn new(route: Vec<T>) -> Self {
         // precondition: we must have at least one route. this simplifies
         // the rest of the control, and it's easy to catchbb
         assert!(route.len() > 0, "Nav routes cannot be empty");
-        let chevron_size = Vec2::new(14.0, 20.0);
-        //let stroke = Stroke::new(2.0, Color32::GOLD);
-        let stroke: Option<Stroke> = None;
-        let padding = 4.0;
+        let title_height = 0.0;
         let navigating = false;
-        let show_title = true;
+        let show_title = None;
         let returning = false;
 
         Nav {
             show_title,
             navigating,
             returning,
-            padding,
-            stroke,
-            chevron_size,
+            title_height,
             route,
         }
     }
 
-    pub fn title(mut self, show: bool) -> Self {
-        self.show_title = show;
-        self
-    }
-
-    pub fn chevron_padding(mut self, padding: f32) -> Self {
-        self.padding = padding;
-        self
-    }
-
-    pub fn stroke(mut self, stroke: impl Into<Stroke>) -> Self {
-        self.stroke = Some(stroke.into());
+    pub fn title(
+        mut self,
+        height: f32,
+        show: fn(
+            &mut egui::Ui,
+            egui::Response,
+            String,
+            Option<String>,
+        ) -> egui::InnerResponse<TitleBarResponse<E>>,
+    ) -> Self {
+        self.title_height = height;
+        self.show_title = Some(show);
         self
     }
 
@@ -125,11 +141,6 @@ impl<T: Clone> Nav<T> {
     /// previous view
     pub fn returning(mut self, returning: bool) -> Self {
         self.returning = returning;
-        self
-    }
-
-    pub fn chevron_size(mut self, size: Vec2) -> Self {
-        self.chevron_size = size;
         self
     }
 
@@ -174,78 +185,57 @@ impl<T: Clone> Nav<T> {
         ui: &mut egui::Ui,
         label: String,
         back: Option<String>,
-    ) -> Option<egui::Response> {
-        let mut header_rect = ui.available_rect_before_wrap();
-        header_rect.set_height(self.chevron_size.y + 4.0);
+    ) -> Option<TitleBarResponse<E>> {
+        let title_response = if let Some(title) = self.show_title {
+            let mut title_rect = ui.available_rect_before_wrap();
+            title_rect.set_height(self.title_height);
+            let titlebar_resp = ui.allocate_rect(title_rect, Sense::hover());
 
-        let response = if let Some(back) = back {
-            Some(ui.put(header_rect, |ui: &mut egui::Ui| {
-                ui.horizontal_centered(|ui| {
-                    let stroke = self
-                        .stroke
-                        .unwrap_or_else(|| Stroke::new(2.0, ui.visuals().hyperlink_color));
+            let mut inner_resp: TitleBarResponse<E> = TitleBarResponse::default();
+            let title_closure = |ui: &mut egui::Ui| {
+                let resp = title(ui, titlebar_resp, label, back);
+                inner_resp = resp.inner;
+                resp.response
+            };
+            ui.put(title_rect, title_closure);
+            ui.advance_cursor_after_rect(title_rect);
 
-                    let chev_response = chevron(ui, self.padding, self.chevron_size, stroke);
-
-                    let label_response = ui.add(
-                        egui::Label::new(back)
-                            .sense(Sense::click())
-                            .selectable(false),
-                    );
-
-                    let response = chev_response.union(label_response);
-
-                    if let Some(cursor) = ui.visuals().interact_cursor {
-                        if response.hovered() {
-                            ui.ctx().set_cursor_icon(cursor);
-                        }
-                    }
-
-                    response
-                })
-                .inner
-            }))
+            Some(inner_resp)
         } else {
             None
         };
 
-        if self.show_title {
-            ui.put(header_rect, |ui: &mut egui::Ui| {
-                ui.vertical_centered_justified(|ui| {
-                    ui.add(egui::Label::new(label).selectable(false))
-                })
-                .inner
-            });
-        }
-
-        ui.advance_cursor_after_rect(header_rect);
-
-        response
+        title_response
     }
 
-    pub fn show<F, R>(&self, ui: &mut egui::Ui, show_route: F) -> NavResponse<R>
+    pub fn show<F, R>(&self, id: u32, ui: &mut egui::Ui, show_route: F) -> NavResponse<R, E>
     where
-        F: Fn(&mut egui::Ui, &Nav<T>) -> R,
+        F: Fn(&mut egui::Ui, &Nav<T, E>) -> R,
         T: Display + Clone,
     {
         let mut show_route = show_route;
-        self.show_internal(ui, &mut show_route)
+        self.show_internal(id, ui, &mut show_route)
     }
 
-    pub fn show_mut<F, R>(&self, ui: &mut egui::Ui, mut show_route: F) -> NavResponse<R>
+    pub fn show_mut<F, R>(&self, id: u32, ui: &mut egui::Ui, mut show_route: F) -> NavResponse<R, E>
     where
-        F: FnMut(&mut egui::Ui, &Nav<T>) -> R,
+        F: FnMut(&mut egui::Ui, &Nav<T, E>) -> R,
         T: Display + Clone,
     {
-        self.show_internal(ui, &mut show_route)
+        self.show_internal(id, ui, &mut show_route)
     }
 
-    fn show_internal<F, R>(&self, ui: &mut egui::Ui, show_route: &mut F) -> NavResponse<R>
+    fn show_internal<F, R>(
+        &self,
+        id: u32,
+        ui: &mut egui::Ui,
+        show_route: &mut F,
+    ) -> NavResponse<R, E>
     where
-        F: FnMut(&mut egui::Ui, &Nav<T>) -> R,
+        F: FnMut(&mut egui::Ui, &Nav<T, E>) -> R,
         T: Display + Clone,
     {
-        let id = ui.id().with("nav");
+        let id = ui.id().with(("nav", id));
         let mut state = State::load(ui.ctx(), id).unwrap_or_default();
 
         // We only handle dragging when there is more than 1 route
@@ -270,12 +260,14 @@ impl<T: Clone> Nav<T> {
             }
         }
 
-        if let Some(resp) = self.header(
+        let titlebar_resp = self.header(
             ui,
             self.top().to_string(),
             self.top_n(1).map(|r| r.to_string()),
-        ) {
-            if resp.clicked() {
+        );
+
+        if let Some(resp) = &titlebar_resp {
+            if resp.go_back {
                 state.action = Some(NavAction::Returning);
             }
         }
@@ -453,6 +445,7 @@ impl<T: Clone> Nav<T> {
 
             NavResponse {
                 inner,
+                title_response: titlebar_resp.and_then(|f| f.title_response),
                 action: state.action,
             }
         }
