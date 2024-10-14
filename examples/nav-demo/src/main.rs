@@ -1,7 +1,7 @@
 use eframe::egui;
 use egui::Frame;
 use egui_demo_lib::{easy_mark::EasyMarkEditor, ColorTest};
-use egui_nav::{Nav, NavAction};
+use egui_nav::{DefaultNavTitle, DefaultTitleResponse, Nav, NavAction, NavUiType};
 use std::fmt;
 
 fn test_routes() -> Vec<Route> {
@@ -85,46 +85,50 @@ fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
     let response = Nav::new(app.routes.clone())
         .navigating(app.navigating)
         .returning(app.returning)
-        .show(ui, |ui, nav: &Nav<Route, ()>| match nav.top() {
-            Route::Editor => {
-                ui.vertical(|ui| {
-                    let mut action: Option<OurNavAction> = None;
+        .show(ui, |ui, typ, nav| match typ {
+            NavUiType::Title => DefaultNavTitle::default()
+                .ui(ui, nav.routes())
+                .map(|n| match n {
+                    DefaultTitleResponse::Back => OurNavAction::Returning,
+                }),
 
-                    if ui.button("Color Test").clicked() {
-                        action = Some(OurNavAction::Navigating(Route::ColorTest));
-                    }
+            NavUiType::Body => match nav.top() {
+                Route::Editor => {
+                    ui.vertical(|ui| {
+                        let mut action: Option<OurNavAction> = None;
 
-                    if nav.routes().len() > 1 {
-                        if ui.button("Back").clicked() {
+                        if ui.button("Color Test").clicked() {
+                            action = Some(OurNavAction::Navigating(Route::ColorTest));
+                        }
+
+                        if nav.routes().len() > 1 && ui.button("Back").clicked() {
                             action = Some(OurNavAction::Returning);
                         }
-                    }
 
-                    EasyMarkEditor::default().ui(ui);
-                    action
-                })
-                .inner
-            }
+                        EasyMarkEditor::default().ui(ui);
+                        action
+                    })
+                    .inner
+                }
 
-            Route::ColorTest => {
-                ui.vertical(|ui| {
-                    let mut action: Option<OurNavAction> = None;
-                    if ui.button("Editor").clicked() {
-                        action = Some(OurNavAction::Navigating(Route::Editor));
-                    }
-                    if nav.routes().len() > 1 {
-                        if ui.button("Back").clicked() {
+                Route::ColorTest => {
+                    ui.vertical(|ui| {
+                        let mut action: Option<OurNavAction> = None;
+                        if ui.button("Editor").clicked() {
+                            action = Some(OurNavAction::Navigating(Route::Editor));
+                        }
+                        if nav.routes().len() > 1 && ui.button("Back").clicked() {
                             action = Some(OurNavAction::Returning);
                         }
-                    }
-                    ColorTest::default().ui(ui);
-                    action
-                })
-                .inner
-            }
+                        ColorTest::default().ui(ui);
+                        action
+                    })
+                    .inner
+                }
+            },
         });
 
-    if let Some(action) = response.inner {
+    if let Some(action) = response.response.or(response.title_response) {
         match action {
             OurNavAction::Navigating(route) => {
                 app.navigating = true;
