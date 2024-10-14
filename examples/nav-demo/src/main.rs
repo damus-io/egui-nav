@@ -1,7 +1,7 @@
 use eframe::egui;
 use egui::Frame;
 use egui_demo_lib::{easy_mark::EasyMarkEditor, ColorTest};
-use egui_nav::{Nav, NavAction};
+use egui_nav::{DefaultNavUi, DefaultTitleResponse, Nav, NavAction};
 use std::fmt;
 
 fn test_routes() -> Vec<Route> {
@@ -82,10 +82,10 @@ enum OurNavAction {
 fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
     ui.visuals_mut().interact_cursor = Some(egui::CursorIcon::PointingHand);
 
-    let response = Nav::new(app.routes.clone())
+    let response = Nav::new(app.routes.clone(), DefaultNavUi::default())
         .navigating(app.navigating)
         .returning(app.returning)
-        .show(ui, |ui, nav: &Nav<Route, ()>| match nav.top() {
+        .show(ui, |ui, nav| match nav.top() {
             Route::Editor => {
                 ui.vertical(|ui| {
                     let mut action: Option<OurNavAction> = None;
@@ -94,10 +94,8 @@ fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
                         action = Some(OurNavAction::Navigating(Route::ColorTest));
                     }
 
-                    if nav.routes().len() > 1 {
-                        if ui.button("Back").clicked() {
-                            action = Some(OurNavAction::Returning);
-                        }
+                    if nav.routes().len() > 1 && ui.button("Back").clicked() {
+                        action = Some(OurNavAction::Returning);
                     }
 
                     EasyMarkEditor::default().ui(ui);
@@ -112,10 +110,8 @@ fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
                     if ui.button("Editor").clicked() {
                         action = Some(OurNavAction::Navigating(Route::Editor));
                     }
-                    if nav.routes().len() > 1 {
-                        if ui.button("Back").clicked() {
-                            action = Some(OurNavAction::Returning);
-                        }
+                    if nav.routes().len() > 1 && ui.button("Back").clicked() {
+                        action = Some(OurNavAction::Returning);
                     }
                     ColorTest::default().ui(ui);
                     action
@@ -134,6 +130,13 @@ fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
             OurNavAction::Returning => {
                 app.returning = true;
             }
+        }
+    }
+
+    if let Some(title_response) = response.title_response {
+        match title_response.inner {
+            DefaultTitleResponse::Back => app.returning = true,
+            DefaultTitleResponse::Nothing => {}
         }
     }
 
