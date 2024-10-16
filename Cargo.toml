@@ -8,5 +8,5 @@ license = "MIT"
 
 [workspace.dependencies]
 egui_nav = { path = "egui-nav" }
-egui = "*"
+egui = "^0.28.0"
  

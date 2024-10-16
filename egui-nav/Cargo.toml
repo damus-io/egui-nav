@@ -6,6 +6,6 @@ edition = "2021"
 [dependencies]
 #egui = { path = "/home/jb55/dev/github/emilk/egui/crates/egui" }
 #egui_extras = { path = "/home/jb55/dev/github/emilk/egui/crates/egui_extras" }
-egui = "*"
-egui_extras = "*"
+egui = "^0.28.0"
+egui_extras = "^0.28.0"
  
