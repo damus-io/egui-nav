@@ -5,6 +5,7 @@ use egui::{
 
 pub struct Nav<T: Clone, E> {
     title_height: f32,
+    id_source: Option<egui::Id>,
     route: Vec<T>,
     navigating: bool,
     show_title: Option<
@@ -105,14 +106,21 @@ impl<T: Clone, E> Nav<T, E> {
         let navigating = false;
         let show_title = None;
         let returning = false;
+        let id_source = None;
 
         Nav {
+            id_source,
             show_title,
             navigating,
             returning,
             title_height,
             route,
         }
+    }
+
+    pub fn id_source(mut self, id: egui::Id) -> Self {
+        self.id_source = Some(id);
+        self
     }
 
     pub fn title(
@@ -208,26 +216,25 @@ impl<T: Clone, E> Nav<T, E> {
         title_response
     }
 
-    pub fn show<F, R>(&self, id: u32, ui: &mut egui::Ui, show_route: F) -> NavResponse<R, E>
+    pub fn show<F, R>(&self, ui: &mut egui::Ui, show_route: F) -> NavResponse<R, E>
     where
         F: Fn(&mut egui::Ui, &Nav<T, E>) -> R,
         T: Display + Clone,
     {
         let mut show_route = show_route;
-        self.show_internal(id, ui, &mut show_route)
+        self.show_internal(ui, &mut show_route)
     }
 
-    pub fn show_mut<F, R>(&self, id: u32, ui: &mut egui::Ui, mut show_route: F) -> NavResponse<R, E>
+    pub fn show_mut<F, R>(&self, ui: &mut egui::Ui, mut show_route: F) -> NavResponse<R, E>
     where
         F: FnMut(&mut egui::Ui, &Nav<T, E>) -> R,
         T: Display + Clone,
     {
-        self.show_internal(id, ui, &mut show_route)
+        self.show_internal(ui, &mut show_route)
     }
 
     fn show_internal<F, R>(
         &self,
-        id: u32,
         ui: &mut egui::Ui,
         show_route: &mut F,
     ) -> NavResponse<R, E>
@@ -235,7 +242,7 @@ impl<T: Clone, E> Nav<T, E> {
         F: FnMut(&mut egui::Ui, &Nav<T, E>) -> R,
         T: Display + Clone,
     {
-        let id = ui.id().with(("nav", id));
+        let id = ui.id().with(("nav", self.id_source));
         let mut state = State::load(ui.ctx(), id).unwrap_or_default();
 
         // We only handle dragging when there is more than 1 route

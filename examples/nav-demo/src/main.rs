@@ -19,11 +19,11 @@ fn main() -> Result<(), eframe::Error> {
         "Nav Demo",
         options,
         Box::new(|_cc| {
-            Box::new(MyApp {
+            Ok(Box::new(MyApp {
                 navigating: false,
                 returning: false,
                 routes: test_routes(),
-            })
+            }))
         }),
     )
 }
@@ -85,7 +85,7 @@ fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
     let response = Nav::new(app.routes.clone())
         .navigating(app.navigating)
         .returning(app.returning)
-        .show(ui, |ui, nav| match nav.top() {
+        .show(ui, |ui, nav: &Nav<Route, ()>| match nav.top() {
             Route::Editor => {
                 ui.vertical(|ui| {
                     let mut action: Option<OurNavAction> = None;
