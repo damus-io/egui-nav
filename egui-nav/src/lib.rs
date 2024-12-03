@@ -291,7 +291,7 @@ impl<Route: Clone, UI: NavUi<Route> + Copy> Nav<Route, UI> {
                 ui.ctx().clone(),
                 //LayerId::new(Order::Background, id),
                 LayerId::new(Order::Background, id),
-                ui.id(),
+                id,
                 available_rect,
                 clip,
                 egui::UiStackInfo::default(),
@@ -349,7 +349,7 @@ impl<Route: Clone, UI: NavUi<Route> + Copy> Nav<Route, UI> {
             let mut ui = egui::Ui::new(
                 ui.ctx().clone(),
                 layer_id,
-                ui.id(),
+                id,
                 available_rect,
                 clip,
                 egui::UiStackInfo::default(),
