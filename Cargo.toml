@@ -8,5 +8,7 @@ license = "MIT"
 
 [workspace.dependencies]
 egui_nav = { path = "egui-nav" }
-egui = "*"
- 
+egui = "0.28.1"
+egui_extras = "0.28.1"
+eframe = "0.28.1"
+egui_demo_lib = "0.28.1"
