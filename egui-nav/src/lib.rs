@@ -11,6 +11,7 @@ pub struct Nav<Route: Clone, UI: NavUi<Route>> {
     title_height: f32,
     id_source: Option<egui::Id>,
     route: Vec<Route>,
+    context: <UI as NavUi<Route>>::Context,
     ui: UI,
     navigating: bool,
     returning: bool,
@@ -80,7 +81,7 @@ pub struct NavResponse<T, TR> {
 }
 
 impl<Route: Clone, UI: NavUi<Route> + Copy> Nav<Route, UI> {
-    pub fn new(route: Vec<Route>, ui: UI) -> Nav<Route, UI> {
+    pub fn new(route: Vec<Route>, ui: UI, context: UI::Context) -> Nav<Route, UI> {
         // precondition: we must have at least one route. this simplifies
         // the rest of the control, and it's easy to catchbb
         assert!(!route.is_empty(), "Nav routes cannot be empty");
@@ -95,8 +96,13 @@ impl<Route: Clone, UI: NavUi<Route> + Copy> Nav<Route, UI> {
             navigating,
             returning,
             title_height,
+            context,
             route,
         }
+    }
+
+    pub fn context(&self) -> <UI as NavUi<Route>>::Context {
+        self.context
     }
 
     pub fn id_source(mut self, id: egui::Id) -> Self {
@@ -145,11 +151,16 @@ impl<Route: Clone, UI: NavUi<Route> + Copy> Nav<Route, UI> {
         self
     }
 
-    fn header(&self, ui: &mut egui::Ui, routes: &[Route]) -> NavUiResponse<UI::TitleResponse> {
+    fn header(
+        &self,
+        context: UI::Context,
+        ui: &mut egui::Ui,
+        routes: &[Route],
+    ) -> NavUiResponse<UI::TitleResponse> {
         let mut title_rect = ui.available_rect_before_wrap();
         title_rect.set_height(self.title_height);
         let mut child_ui = ui.child_ui(title_rect, *ui.layout(), None);
-        let r = self.ui.title_ui(&mut child_ui, routes);
+        let r = self.ui.title_ui(context, &mut child_ui, routes);
         if let Some(r) = &r.title_response {
             ui.advance_cursor_after_rect(r.response.rect);
         }
@@ -208,7 +219,7 @@ impl<Route: Clone, UI: NavUi<Route> + Copy> Nav<Route, UI> {
             }
         }
 
-        let nav_ui_resp = self.header(ui, self.routes());
+        let nav_ui_resp = self.header(self.context, ui, self.routes());
 
         let available_rect = ui.available_rect_before_wrap();
 

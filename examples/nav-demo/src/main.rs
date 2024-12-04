@@ -82,7 +82,7 @@ enum OurNavAction {
 fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
     ui.visuals_mut().interact_cursor = Some(egui::CursorIcon::PointingHand);
 
-    let response = Nav::new(app.routes.clone(), DefaultNavUi::default())
+    let response = Nav::new(app.routes.clone(), DefaultNavUi::default(), ())
         .navigating(app.navigating)
         .returning(app.returning)
         .show(ui, |ui, nav| match nav.top() {

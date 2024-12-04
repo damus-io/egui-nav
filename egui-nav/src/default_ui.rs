@@ -29,8 +29,9 @@ pub enum DefaultTitleResponse {
 
 impl<R: Display> NavUi<R> for DefaultNavUi {
     type TitleResponse = DefaultTitleResponse;
+    type Context = ();
 
-    fn title_ui(&self, ui: &mut egui::Ui, routes: &[R]) -> NavUiResponse<Self::TitleResponse> {
+    fn title_ui(&self, _context: (), ui: &mut egui::Ui, routes: &[R]) -> NavUiResponse<Self::TitleResponse> {
         // default route ui
         let mut header_rect = ui.available_rect_before_wrap();
         header_rect.set_height(self.chevron_size.y + 4.0);

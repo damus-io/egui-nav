@@ -1,7 +1,13 @@
 pub trait NavUi<R> {
     type TitleResponse;
+    type Context: Copy;
 
-    fn title_ui(&self, ui: &mut egui::Ui, routes: &[R]) -> NavUiResponse<Self::TitleResponse>;
+    fn title_ui(
+        &self,
+        context: Self::Context,
+        ui: &mut egui::Ui,
+        routes: &[R],
+    ) -> NavUiResponse<Self::TitleResponse>;
 }
 
 pub struct NavUiResponse<E> {
