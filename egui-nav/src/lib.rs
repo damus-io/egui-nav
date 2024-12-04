@@ -140,6 +140,11 @@ impl<Route: Clone, UI: NavUi<Route> + Copy> Nav<Route, UI> {
         util::arr_top_n(&self.route, n)
     }
 
+    pub fn title_height(mut self, height: f32) -> Self {
+        self.title_height = height;
+        self
+    }
+
     fn header(&self, ui: &mut egui::Ui, routes: &[Route]) -> NavUiResponse<UI::TitleResponse> {
         let mut title_rect = ui.available_rect_before_wrap();
         title_rect.set_height(self.title_height);
