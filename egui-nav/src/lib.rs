@@ -7,10 +7,9 @@ mod util;
 pub use default_ui::{DefaultNavTitle, DefaultTitleResponse};
 pub use ui::NavUiType;
 
-pub struct Nav<Route: Clone> {
-    title_height: f32,
+pub struct Nav<'a, Route: Clone> {
     id_source: Option<egui::Id>,
-    route: Vec<Route>,
+    route: &'a [Route],
     navigating: bool,
     returning: bool,
 }
@@ -78,12 +77,11 @@ pub struct NavResponse<R> {
     pub action: Option<NavAction>,
 }
 
-impl<Route: Clone> Nav<Route> {
-    pub fn new(route: Vec<Route>) -> Nav<Route> {
+impl<'a, Route: Clone> Nav<'a, Route> {
+    pub fn new(route: &'a [Route]) -> Self {
         // precondition: we must have at least one route. this simplifies
         // the rest of the control, and it's easy to catchbb
         assert!(!route.is_empty(), "Nav routes cannot be empty");
-        let title_height = 0.0;
         let navigating = false;
         let returning = false;
         let id_source = None;
@@ -92,7 +90,6 @@ impl<Route: Clone> Nav<Route> {
             id_source,
             navigating,
             returning,
-            title_height,
             route,
         }
     }
@@ -116,11 +113,7 @@ impl<Route: Clone> Nav<Route> {
         self
     }
 
-    pub fn routes(&self) -> &Vec<Route> {
-        &self.route
-    }
-
-    pub fn routes_arr(&self) -> &[Route] {
+    pub fn routes(&self) -> &[Route] {
         &self.route
     }
 
@@ -283,7 +276,7 @@ impl<Route: Clone> Nav<Route> {
             // render the previous nav view in the background when
             // transitioning
             let nav = Nav {
-                route: self.route[..self.route.len() - 1].to_vec(),
+                route: &self.route[..self.route.len() - 1],
                 ..*self
             };
             let _r = show_route(&mut ui, NavUiType::Body, &nav);
@@ -342,7 +335,7 @@ impl<Route: Clone> Nav<Route> {
                 // to avoid a flicker, render the popped route when we
                 // are in the returned state
                 let nav = Nav {
-                    route: self.route[..self.route.len() - 1].to_vec(),
+                    route: &self.route[..self.route.len() - 1],
                     ..*self
                 };
                 show_route(&mut ui, NavUiType::Body, &nav)
