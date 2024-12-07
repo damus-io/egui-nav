@@ -249,7 +249,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
         // behind transition layer
         let transitioning = state.is_transitioning();
         if transitioning {
-            let id = ui.id().with("behind");
+            let id = ui.id().with("bg");
             let min_rect = state.popped_min_rect.unwrap_or(available_rect);
             let initial_shift = -min_rect.width() * 0.1;
             let mut amt = initial_shift + springy(state.offset);
@@ -263,15 +263,14 @@ impl<'a, Route: Clone> Nav<'a, Route> {
                 vec2(state.offset, available_rect.max.y),
             );
 
+            let layer_id = LayerId::new(Order::Background, id);
             let mut ui = egui::Ui::new(
                 ui.ctx().clone(),
-                //LayerId::new(Order::Background, id),
-                LayerId::new(Order::Background, id),
+                layer_id,
                 ui.id(),
-                available_rect,
-                clip,
-                egui::UiStackInfo::default(),
+                egui::UiBuilder::new().max_rect(available_rect)
             );
+            ui.set_clip_rect(clip);
 
             // render the previous nav view in the background when
             // transitioning
@@ -300,7 +299,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
 
         // foreground layer
         {
-            let id = ui.id().with("front");
+            let id = ui.id().with("fg");
 
             let layer_id = if transitioning {
                 // when transitioning, we need a new layer id otherwise the
@@ -326,10 +325,9 @@ impl<'a, Route: Clone> Nav<'a, Route> {
                 ui.ctx().clone(),
                 layer_id,
                 ui.id(),
-                available_rect,
-                clip,
-                egui::UiStackInfo::default(),
+                egui::UiBuilder::new().max_rect(available_rect)
             );
+            ui.set_clip_rect(clip);
 
             let response = if let Some(NavAction::Returned) = state.action {
                 // to avoid a flicker, render the popped route when we
