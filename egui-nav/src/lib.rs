@@ -1,17 +1,21 @@
 use egui::{emath::TSTransform, vec2, LayerId, Order, Rect, Sense, Vec2};
 
 mod default_ui;
+mod router;
 mod ui;
 mod util;
 
+use tracing::debug;
+
 pub use default_ui::{DefaultNavTitle, DefaultTitleResponse};
+pub use router::{AsRoutes, HasRouter, Router};
 pub use ui::NavUiType;
 
-pub struct Nav<'a, Route: Clone> {
+pub struct Nav<'a, Route: AsRoutes, Rtr: HasRouter<Route>> {
     id_source: Option<egui::Id>,
-    route: &'a [Route],
-    navigating: bool,
-    returning: bool,
+    router: &'a mut Rtr,
+    popped: u32,
+    route_type: std::marker::PhantomData<Route>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -77,20 +81,28 @@ pub struct NavResponse<R> {
     pub action: Option<NavAction>,
 }
 
-impl<'a, Route: Clone> Nav<'a, Route> {
-    pub fn new(route: &'a [Route]) -> Self {
+impl<'a, Routes, Rtr> Nav<'a, Routes, Rtr>
+where
+    //Routes: AsRoutes<Route = Routes>,
+    Routes: AsRoutes,
+    Rtr: HasRouter<Routes>,
+{
+    pub fn new(router: &'a mut Rtr) -> Nav<'a, Routes, Rtr> {
         // precondition: we must have at least one route. this simplifies
         // the rest of the control, and it's easy to catchbb
-        assert!(!route.is_empty(), "Nav routes cannot be empty");
-        let navigating = false;
-        let returning = false;
+        assert!(
+            !router.get_router().routes().is_empty(),
+            "Nav routes cannot be empty"
+        );
         let id_source = None;
+        let popped = 0;
+        let route_type = std::marker::PhantomData {};
 
         Nav {
             id_source,
-            navigating,
-            returning,
-            route,
+            router,
+            popped,
+            route_type,
         }
     }
 
@@ -99,66 +111,57 @@ impl<'a, Route: Clone> Nav<'a, Route> {
         self
     }
 
-    /// Call this when you have just pushed a new value to your route and
-    /// you want to animate to this new view
-    pub fn navigating(mut self, navigating: bool) -> Self {
-        self.navigating = navigating;
-        self
+    pub fn context(&mut self) -> &mut Rtr {
+        self.router
     }
 
-    /// Call this when you have just invoked an action to return to the
-    /// previous view
-    pub fn returning(mut self, returning: bool) -> Self {
-        self.returning = returning;
-        self
+    fn router(&mut self) -> &mut Router<Routes> {
+        self.context().get_router()
     }
 
-    pub fn routes(&self) -> &[Route] {
-        &self.route
+    pub fn routes(&mut self) -> &[Routes::Route] {
+        let popn = self.popped as usize;
+        let len = self.router().routes().len();
+        &self.router().routes()[..len - popn]
     }
 
-    /// Nav guarantees there is at least one route element
-    pub fn top(&self) -> &Route {
-        &self.route[self.route.len() - 1]
+    pub fn top(&mut self) -> &Routes::Route {
+        let popn = self.popped as usize;
+        self.router().top_n(popn).expect("pop ok")
     }
 
-    /// Get the Route at some position near the top of the stack
-    ///
-    /// Example:
-    ///
-    /// For route &[Route::Home, Route::Profile]
-    ///
-    ///   - routes.top_n(0) for the top route, Route::Profile
-    ///   - routes.top_n(1) for the route immediate before the top route, Route::Home
-    ///
-    pub fn top_n(&self, n: usize) -> Option<&Route> {
-        util::arr_top_n(&self.route, n)
+    fn virtual_pop(&mut self) {
+        self.popped += 1;
     }
 
-    pub fn show<F, R>(&self, ui: &mut egui::Ui, show_route: F) -> NavResponse<R>
+    fn virtual_unpop(&mut self) {
+        self.popped -= 1;
+    }
+
+    pub fn show<F, R>(&mut self, ui: &mut egui::Ui, show_route: F) -> NavResponse<R>
     where
-        F: Fn(&mut egui::Ui, NavUiType, &Nav<Route>) -> R,
+        F: Fn(&mut egui::Ui, NavUiType, &mut Self) -> R,
     {
         let mut show_route = show_route;
         self.show_internal(ui, &mut show_route)
     }
 
-    pub fn show_mut<F, R>(&self, ui: &mut egui::Ui, mut show_route: F) -> NavResponse<R>
+    pub fn show_mut<F, R>(&mut self, ui: &mut egui::Ui, mut show_route: F) -> NavResponse<R>
     where
-        F: FnMut(&mut egui::Ui, NavUiType, &Nav<Route>) -> R,
+        F: FnMut(&mut egui::Ui, NavUiType, &mut Self) -> R,
     {
         self.show_internal(ui, &mut show_route)
     }
 
-    fn show_internal<F, R>(&self, ui: &mut egui::Ui, show_route: &mut F) -> NavResponse<R>
+    fn show_internal<F, R>(&mut self, ui: &mut egui::Ui, show_route: &mut F) -> NavResponse<R>
     where
-        F: FnMut(&mut egui::Ui, NavUiType, &Nav<Route>) -> R,
+        F: FnMut(&mut egui::Ui, NavUiType, &mut Self) -> R,
     {
         let id = ui.id().with(("nav", self.id_source));
         let mut state = State::load(ui.ctx(), id).unwrap_or_default();
 
         // We only handle dragging when there is more than 1 route
-        if self.route.len() > 1 {
+        if self.routes().len() > 1 {
             // Drag contents to transition back.
             // We must do this BEFORE adding content to the `Nav`,
             // or we will steal input from the widgets we contain.
@@ -184,12 +187,12 @@ impl<'a, Route: Clone> Nav<'a, Route> {
         let available_rect = ui.available_rect_before_wrap();
 
         // This should probably override other actions?
-        if self.navigating {
+        if self.router().is_navigating() {
             if state.action != Some(NavAction::Navigating) {
                 state.offset = available_rect.width();
                 state.action = Some(NavAction::Navigating);
             }
-        } else if self.returning && state.action != Some(NavAction::Returning) {
+        } else if self.router().is_returning() && state.action != Some(NavAction::Returning) {
             state.action = Some(NavAction::Returning);
         }
 
@@ -208,10 +211,12 @@ impl<'a, Route: Clone> Nav<'a, Route> {
                     state.action = None;
                 }
                 NavAction::Navigating => {
+                    debug!("offset {}", state.offset);
                     if let Some(offset) = spring_animate(state.offset, 0.0, true) {
                         ui.ctx().request_repaint();
                         state.offset = offset;
                     } else {
+                        debug!("navigated, setting navigating to false");
                         state.action = Some(NavAction::Navigated);
                     }
                 }
@@ -268,17 +273,15 @@ impl<'a, Route: Clone> Nav<'a, Route> {
                 ui.ctx().clone(),
                 layer_id,
                 ui.id(),
-                egui::UiBuilder::new().max_rect(available_rect)
+                egui::UiBuilder::new().max_rect(available_rect),
             );
             ui.set_clip_rect(clip);
 
             // render the previous nav view in the background when
             // transitioning
-            let nav = Nav {
-                route: &self.route[..self.route.len() - 1],
-                ..*self
-            };
-            let _r = show_route(&mut ui, NavUiType::Body, &nav);
+            self.virtual_pop();
+            let _r = show_route(&mut ui, NavUiType::Body, self);
+            self.virtual_unpop();
 
             state.popped_min_rect = Some(ui.min_rect());
 
@@ -325,18 +328,17 @@ impl<'a, Route: Clone> Nav<'a, Route> {
                 ui.ctx().clone(),
                 layer_id,
                 ui.id(),
-                egui::UiBuilder::new().max_rect(available_rect)
+                egui::UiBuilder::new().max_rect(available_rect),
             );
             ui.set_clip_rect(clip);
 
             let response = if let Some(NavAction::Returned) = state.action {
                 // to avoid a flicker, render the popped route when we
                 // are in the returned state
-                let nav = Nav {
-                    route: &self.route[..self.route.len() - 1],
-                    ..*self
-                };
-                show_route(&mut ui, NavUiType::Body, &nav)
+                self.virtual_pop();
+                let r = show_route(&mut ui, NavUiType::Body, self);
+                self.virtual_unpop();
+                r
             } else {
                 show_route(&mut ui, NavUiType::Body, self)
             };
@@ -346,6 +348,23 @@ impl<'a, Route: Clone> Nav<'a, Route> {
                     ui.layer_id(),
                     egui::emath::TSTransform::from_translation(Vec2::new(state.offset, 0.0)),
                 );
+            }
+
+            // handle these after rendering to avoid ui popping effects
+            if let Some(action) = state.action {
+                match action {
+                    NavAction::Returned => {
+                        debug!("returned, popping route");
+                        self.router().pop();
+                        state.action = None;
+                    }
+                    NavAction::Navigated => {
+                        debug!("navigated, settings navigating to false");
+                        self.router().set_navigating(false);
+                        state.action = None;
+                    }
+                    _ => {}
+                }
             }
 
             NavResponse {
