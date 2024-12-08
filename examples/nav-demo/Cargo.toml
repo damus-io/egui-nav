@@ -11,12 +11,12 @@ egui = { workspace = true }
 egui_extras = { workspace = true }
 egui_demo_lib = { workspace = true }
 eframe = { workspace = true }
-env_logger = "0.11.1"
 log = "0.4"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tracing-subscriber = "0.3"
+tracing = "^0.1.41"
 
 # web:
 [target.'cfg(target_arch = "wasm32")'.dependencies]

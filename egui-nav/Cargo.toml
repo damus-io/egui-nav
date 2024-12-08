@@ -11,4 +11,4 @@ license = "MIT"
 #egui_extras = { path = "/home/jb55/dev/github/emilk/egui/crates/egui_extras" }
 egui = { workspace = true }
 egui_extras =  { workspace = true }
- 
+tracing = "^0.1.41"
