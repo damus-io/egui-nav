@@ -358,7 +358,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
 }
 
 fn springy(offset: f32) -> f32 {
-    ((offset.abs().powf(1.2) - 1.0) * 0.1).max(0.5)
+    (offset.abs() * 0.6).max(0.2)
 }
 
 fn spring_animate(offset: f32, target: f32, left: bool) -> Option<f32> {
