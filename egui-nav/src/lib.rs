@@ -266,9 +266,10 @@ impl<'a, Route: Clone> Nav<'a, Route> {
             let layer_id = LayerId::new(Order::Background, id);
             let mut ui = egui::Ui::new(
                 ui.ctx().clone(),
-                layer_id,
                 ui.id(),
-                egui::UiBuilder::new().max_rect(available_rect)
+                egui::UiBuilder::new()
+                    .layer_id(layer_id)
+                    .max_rect(available_rect),
             );
             ui.set_clip_rect(clip);
 
@@ -323,9 +324,10 @@ impl<'a, Route: Clone> Nav<'a, Route> {
 
             let mut ui = egui::Ui::new(
                 ui.ctx().clone(),
-                layer_id,
                 ui.id(),
-                egui::UiBuilder::new().max_rect(available_rect)
+                egui::UiBuilder::new()
+                    .layer_id(layer_id)
+                    .max_rect(available_rect),
             );
             ui.set_clip_rect(clip);
 
