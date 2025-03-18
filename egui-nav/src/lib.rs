@@ -288,7 +288,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
             let fade_color = egui::Color32::from_black_alpha(alpha);
 
             ui.painter()
-                .rect_filled(clip, egui::Rounding::default(), fade_color);
+                .rect_filled(clip, egui::CornerRadius::default(), fade_color);
 
             if amt < 0.0 {
                 ui.ctx().transform_layer_shapes(
@@ -300,8 +300,6 @@ impl<'a, Route: Clone> Nav<'a, Route> {
 
         // foreground layer
         {
-            let id = ui.id().with("fg");
-
             let layer_id = if transitioning {
                 // when transitioning, we need a new layer id otherwise the
                 // view transform will transform more things than we want
