@@ -1,10 +1,12 @@
 use egui::{emath::TSTransform, vec2, LayerId, Order, Rect, Sense, Vec2};
 
 mod default_ui;
+mod popup_sheet;
 mod ui;
 mod util;
 
 pub use default_ui::{DefaultNavTitle, DefaultTitleResponse};
+pub use popup_sheet::{Percent, PopupResponse, PopupSheet};
 pub use ui::NavUiType;
 
 pub struct Nav<'a, Route: Clone> {

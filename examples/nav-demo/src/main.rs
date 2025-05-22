@@ -1,7 +1,7 @@
 use eframe::egui;
 use egui::Frame;
 use egui_demo_lib::{easy_mark::EasyMarkEditor, ColorTest};
-use egui_nav::{DefaultNavTitle, DefaultTitleResponse, Nav, NavAction, NavUiType};
+use egui_nav::{DefaultNavTitle, DefaultTitleResponse, Nav, NavAction, NavUiType, PopupSheet};
 use std::fmt;
 
 fn test_routes() -> Vec<Route> {
@@ -23,6 +23,7 @@ fn main() -> Result<(), eframe::Error> {
                 navigating: false,
                 returning: false,
                 routes: test_routes(),
+                popup: None,
             }))
         }),
     )
@@ -55,6 +56,7 @@ fn main() {
 #[derive(Default)]
 struct MyApp {
     routes: Vec<Route>,
+    popup: Option<Route>,
     navigating: bool,
     returning: bool,
 }
@@ -76,11 +78,72 @@ impl fmt::Display for Route {
 
 enum OurNavAction {
     Navigating(Route),
+    Popup(Route),
     Returning,
 }
 
 fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
     ui.visuals_mut().interact_cursor = Some(egui::CursorIcon::PointingHand);
+
+    if let Some(popup) = app.popup {
+        if let Some(bg_route) = app.routes.last() {
+            let resp =
+                PopupSheet::new(bg_route, &popup)
+                    .navigating(app.navigating)
+                    .returning(app.returning)
+                    .show(ui, |ui, typ, bg_route| match typ {
+                        NavUiType::Title => DefaultNavTitle::default()
+                            .ui(ui, &vec![&bg_route])
+                            .map(|n| match n {
+                                DefaultTitleResponse::Back => OurNavAction::Returning,
+                            }),
+
+                        NavUiType::Body => match *bg_route {
+                            Route::Editor => {
+                                ui.vertical(|ui| {
+                                    let mut action: Option<OurNavAction> = None;
+
+                                    if ui.button("Color Test").clicked() {
+                                        action = Some(OurNavAction::Navigating(Route::ColorTest));
+                                    }
+
+                                    if ui.button("Popup color test").clicked() {
+                                        action = Some(OurNavAction::Popup(Route::ColorTest));
+                                    }
+
+                                    let _ = ui.button("Back");
+
+                                    EasyMarkEditor::default().ui(ui);
+                                    action
+                                })
+                                .inner
+                            }
+
+                            Route::ColorTest => {
+                                ui.vertical(|ui| {
+                                    let mut action: Option<OurNavAction> = None;
+                                    if ui.button("Editor").clicked() {
+                                        action = Some(OurNavAction::Navigating(Route::Editor));
+                                    }
+                                    let _ = ui.button("Back");
+                                    ColorTest::default().ui(ui);
+                                    action
+                                })
+                                .inner
+                            }
+                        },
+                    });
+
+            if let Some(NavAction::Returned) = resp.action {
+                app.popup = None;
+                app.returning = false;
+            } else if let Some(NavAction::Navigated) = resp.action {
+                app.navigating = false;
+            }
+
+            return;
+        }
+    }
 
     let response = Nav::new(&app.routes)
         .navigating(app.navigating)
@@ -99,6 +162,10 @@ fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
 
                         if ui.button("Color Test").clicked() {
                             action = Some(OurNavAction::Navigating(Route::ColorTest));
+                        }
+
+                        if ui.button("Popup color test").clicked() {
+                            action = Some(OurNavAction::Popup(Route::ColorTest));
                         }
 
                         if nav.routes().len() > 1 && ui.button("Back").clicked() {
@@ -134,9 +201,12 @@ fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
                 app.navigating = true;
                 app.routes.push(route);
             }
-
             OurNavAction::Returning => {
                 app.returning = true;
+            }
+            OurNavAction::Popup(route) => {
+                app.popup = Some(route);
+                app.navigating = true;
             }
         }
     }
