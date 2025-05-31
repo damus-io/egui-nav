@@ -64,19 +64,16 @@ impl DefaultNavTitle {
         });
 
         if let Some(resp) = response {
-            let title_resp = if resp.clicked() {
+            if resp.clicked() {
                 Some(DefaultTitleResponse::Back)
             } else {
                 None
-            };
-
-            title_resp
+            }
         } else {
             None
         }
     }
 }
-
 
 fn chevron(ui: &mut egui::Ui, pad: f32, size: Vec2, stroke: impl Into<Stroke>) -> egui::Response {
     let (r, painter) = ui.allocate_painter(size, Sense::click());

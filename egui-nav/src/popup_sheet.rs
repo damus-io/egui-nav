@@ -94,7 +94,7 @@ impl<'a, Route: Clone> PopupSheet<'a, Route> {
             let rect = ui.available_rect_before_wrap();
             rect.top() + self.split_percentage.of(rect.bottom() - rect.top())
         };
-        let mut state = State::load(ui.ctx(), id).unwrap_or_else(|| State {
+        let mut state = State::load(ui.ctx(), id).unwrap_or(State {
             offset: max_height,
             action: None,
             popped_min_rect: None,
@@ -163,13 +163,11 @@ impl<'a, Route: Clone> PopupSheet<'a, Route> {
             content_rect,
             content_rect,
             |ui| {
-                let resp = if let Some(NavAction::Returned) = state.action {
-                    show_route(ui, NavUiType::Body, &self.bg_route)
+                if let Some(NavAction::Returned) = state.action {
+                    show_route(ui, NavUiType::Body, self.bg_route)
                 } else {
                     show_route(ui, NavUiType::Body, self.fg_route)
-                };
-
-                resp
+                }
             },
         );
 

@@ -116,7 +116,7 @@ struct State {
 
 impl State {
     fn is_transitioning(&self) -> bool {
-        self.action.map_or(false, |s| s.is_transitioning())
+        self.action.is_some_and(|s| s.is_transitioning())
     }
 }
 
@@ -173,7 +173,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
     }
 
     pub fn routes(&self) -> &[Route] {
-        &self.route
+        self.route
     }
 
     /// Nav guarantees there is at least one route element
@@ -191,7 +191,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
     ///   - routes.top_n(1) for the route immediate before the top route, Route::Home
     ///
     pub fn top_n(&self, n: usize) -> Option<&Route> {
-        util::arr_top_n(&self.route, n)
+        util::arr_top_n(self.route, n)
     }
 
     pub fn show<F, R>(&self, ui: &mut egui::Ui, show_route: F) -> NavResponse<R>
@@ -326,7 +326,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
 
             NavResponse {
                 response,
-                title_response: title_response,
+                title_response,
                 action: state.action,
             }
         }

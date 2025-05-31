@@ -87,52 +87,53 @@ fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
 
     if let Some(popup) = app.popup {
         if let Some(bg_route) = app.routes.last() {
-            let resp =
-                PopupSheet::new(bg_route, &popup)
-                    .navigating(app.navigating)
-                    .returning(app.returning)
-                    .show(ui, |ui, typ, bg_route| match typ {
-                        NavUiType::Title => DefaultNavTitle::default()
-                            .ui(ui, &vec![&bg_route])
+            let resp = PopupSheet::new(bg_route, &popup)
+                .navigating(app.navigating)
+                .returning(app.returning)
+                .show(ui, |ui, typ, bg_route| match typ {
+                    NavUiType::Title => {
+                        DefaultNavTitle::default()
+                            .ui(ui, &[&bg_route])
                             .map(|n| match n {
                                 DefaultTitleResponse::Back => OurNavAction::Returning,
-                            }),
+                            })
+                    }
 
-                        NavUiType::Body => match *bg_route {
-                            Route::Editor => {
-                                ui.vertical(|ui| {
-                                    let mut action: Option<OurNavAction> = None;
+                    NavUiType::Body => match *bg_route {
+                        Route::Editor => {
+                            ui.vertical(|ui| {
+                                let mut action: Option<OurNavAction> = None;
 
-                                    if ui.button("Color Test").clicked() {
-                                        action = Some(OurNavAction::Navigating(Route::ColorTest));
-                                    }
+                                if ui.button("Color Test").clicked() {
+                                    action = Some(OurNavAction::Navigating(Route::ColorTest));
+                                }
 
-                                    if ui.button("Popup color test").clicked() {
-                                        action = Some(OurNavAction::Popup(Route::ColorTest));
-                                    }
+                                if ui.button("Popup color test").clicked() {
+                                    action = Some(OurNavAction::Popup(Route::ColorTest));
+                                }
 
-                                    let _ = ui.button("Back");
+                                let _ = ui.button("Back");
 
-                                    EasyMarkEditor::default().ui(ui);
-                                    action
-                                })
-                                .inner
-                            }
+                                EasyMarkEditor::default().ui(ui);
+                                action
+                            })
+                            .inner
+                        }
 
-                            Route::ColorTest => {
-                                ui.vertical(|ui| {
-                                    let mut action: Option<OurNavAction> = None;
-                                    if ui.button("Editor").clicked() {
-                                        action = Some(OurNavAction::Navigating(Route::Editor));
-                                    }
-                                    let _ = ui.button("Back");
-                                    ColorTest::default().ui(ui);
-                                    action
-                                })
-                                .inner
-                            }
-                        },
-                    });
+                        Route::ColorTest => {
+                            ui.vertical(|ui| {
+                                let mut action: Option<OurNavAction> = None;
+                                if ui.button("Editor").clicked() {
+                                    action = Some(OurNavAction::Navigating(Route::Editor));
+                                }
+                                let _ = ui.button("Back");
+                                ColorTest::default().ui(ui);
+                                action
+                            })
+                            .inner
+                        }
+                    },
+                });
 
             if let Some(NavAction::Returned) = resp.action {
                 app.popup = None;
