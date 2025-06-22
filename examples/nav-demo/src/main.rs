@@ -135,7 +135,7 @@ fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
                     },
                 });
 
-            if let Some(NavAction::Returned) = resp.action {
+            if let Some(NavAction::Returned(_)) = resp.action {
                 app.popup = None;
                 app.returning = false;
             } else if let Some(NavAction::Navigated) = resp.action {
@@ -213,7 +213,7 @@ fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
     }
 
     if let Some(action) = response.action {
-        if let NavAction::Returned = action {
+        if let NavAction::Returned(_) = action {
             app.routes.pop();
             app.returning = false;
             println!("Popped route {:?}", app.routes);

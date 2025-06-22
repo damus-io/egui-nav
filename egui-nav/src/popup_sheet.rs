@@ -121,9 +121,9 @@ impl<'a, Route: Clone> PopupSheet<'a, Route> {
                 state.offset = content_rect.bottom();
                 state.action = Some(NavAction::Navigating);
             }
-        } else if self.returning && state.action != Some(NavAction::Returning) {
+        } else if self.returning && !matches!(state.action, Some(NavAction::Returning(_))) {
             state.offset = max_height;
-            state.action = Some(NavAction::Returning);
+            state.action = Some(NavAction::Returning(crate::ReturnType::Click));
         }
 
         let max_size = content_rect.bottom();
@@ -151,7 +151,7 @@ impl<'a, Route: Clone> PopupSheet<'a, Route> {
         let bg_resp = ui.allocate_rect(bg_rect, egui::Sense::click());
 
         if bg_resp.clicked() {
-            state.action = Some(NavAction::Returning);
+            state.action = Some(NavAction::Returning(crate::ReturnType::Click));
         }
 
         state.store(ui.ctx(), id);
@@ -163,7 +163,7 @@ impl<'a, Route: Clone> PopupSheet<'a, Route> {
             content_rect,
             content_rect,
             |ui| {
-                if let Some(NavAction::Returned) = state.action {
+                if matches!(state.action, Some(NavAction::Returned(_))) {
                     show_route(ui, NavUiType::Body, self.bg_route)
                 } else {
                     show_route(ui, NavUiType::Body, self.fg_route)

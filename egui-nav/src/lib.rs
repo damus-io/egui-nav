@@ -17,9 +17,15 @@ pub struct Nav<'a, Route: Clone> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ReturnType {
+    Drag,
+    Click,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NavAction {
     /// We're returning to the previous view
-    Returning,
+    Returning(ReturnType),
 
     /// We released the drag, but not far enough to actually return
     Resetting,
@@ -28,7 +34,7 @@ pub enum NavAction {
     Dragging,
 
     /// We've returning to the previous view. Pop your route!
-    Returned,
+    Returned(ReturnType),
 
     /// We've navigating to the next view.
     Navigating,
@@ -40,10 +46,10 @@ pub enum NavAction {
 impl NavAction {
     fn is_transitioning(&self) -> bool {
         match self {
-            NavAction::Returning => true,
+            NavAction::Returning(_) => true,
             NavAction::Resetting => true,
             NavAction::Dragging => true,
-            NavAction::Returned => false,
+            NavAction::Returned(_) => false,
             NavAction::Navigated => false,
             NavAction::Navigating => true,
         }
@@ -64,7 +70,7 @@ impl NavAction {
                     state.offset = 0.0;
                 }
             }
-            NavAction::Returned => {
+            NavAction::Returned(_) => {
                 state.action = None;
                 state.offset = offset_at_rest;
             }
@@ -79,7 +85,7 @@ impl NavAction {
                     state.action = Some(NavAction::Navigated);
                 }
             }
-            NavAction::Returning => {
+            NavAction::Returning(return_type) => {
                 // We're returning, move the current view off to the
                 // right until the entire view is gone.
 
@@ -88,7 +94,7 @@ impl NavAction {
                     state.offset = offset;
                 } else {
                     state.offset = max_size;
-                    state.action = Some(NavAction::Returned);
+                    state.action = Some(NavAction::Returned(return_type));
                 }
             }
             NavAction::Resetting => {
@@ -239,8 +245,8 @@ impl<'a, Route: Clone> Nav<'a, Route> {
                 state.offset = available_rect.width();
                 state.action = Some(NavAction::Navigating);
             }
-        } else if self.returning && state.action != Some(NavAction::Returning) {
-            state.action = Some(NavAction::Returning);
+        } else if self.returning && !matches!(state.action, Some(NavAction::Returning(_))) {
+            state.action = Some(NavAction::Returning(ReturnType::Click));
         }
 
         if let Some(action) = state.action {
@@ -252,7 +258,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
                 available_rect.width(),
             );
         }
-        if matches!(state.action, Some(NavAction::Returned)) {
+        if matches!(state.action, Some(NavAction::Returned(_))) {
             state.offset = 0.0;
         }
 
@@ -310,7 +316,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
                 clip,
                 available_rect,
                 |ui| {
-                    if let Some(NavAction::Returned) = state.action {
+                    if matches!(state.action, Some(NavAction::Returned(_))) {
                         // to avoid a flicker, render the popped route when we
                         // are in the returned state
                         let nav = Nav {
@@ -412,7 +418,7 @@ impl Drag {
             // or animate back
 
             if self.offset_from_rest > self.content_size() / 2.0 {
-                return Some(NavAction::Returning);
+                return Some(NavAction::Returning(ReturnType::Drag));
             } else {
                 return Some(NavAction::Resetting);
             }
