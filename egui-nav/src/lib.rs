@@ -412,7 +412,7 @@ impl Drag {
 
         if content_response.dragged() {
             return Some(NavAction::Dragging);
-        } else if content_response.drag_stopped() {
+        } else if content_response.drag_stopped() || ui.ctx().drag_stopped_id().is_some() {
             // we've stopped dragging, check to see if the offset is
             // passed a certain point, to determine if we should return
             // or animate back
