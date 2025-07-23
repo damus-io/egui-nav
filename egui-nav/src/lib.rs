@@ -178,6 +178,14 @@ impl<'a, Route: Clone> Nav<'a, Route> {
         self
     }
 
+    fn id(&self, ui: &egui::Ui) -> egui::Id {
+        ui.id().with(("nav", self.id_source))
+    }
+
+    pub fn drag_id(&self, ui: &egui::Ui) -> egui::Id {
+        self.id(ui).with("drag")
+    }
+
     pub fn routes(&self) -> &[Route] {
         self.route
     }
@@ -219,13 +227,13 @@ impl<'a, Route: Clone> Nav<'a, Route> {
     where
         F: FnMut(&mut egui::Ui, NavUiType, &Nav<Route>) -> R,
     {
-        let id = ui.id().with(("nav", self.id_source));
+        let id = self.id(ui);
         let mut state = State::load(ui.ctx(), id).unwrap_or_default();
 
         // We only handle dragging when there is more than 1 route
         if self.route.len() > 1 {
             let drag = Drag::new(
-                id,
+                self.drag_id(ui),
                 DragDirection::Horizontal,
                 ui.available_rect_before_wrap(),
                 state.offset,
@@ -384,13 +392,13 @@ struct Drag {
 
 impl Drag {
     pub(crate) fn new(
-        parent_id: egui::Id,
+        id: egui::Id,
         direction: DragDirection,
         content_rect: egui::Rect,
         offset_from_rest: f32,
     ) -> Self {
         Drag {
-            id: parent_id.with("drag"),
+            id,
             content_rect,
             direction,
             offset_from_rest,
