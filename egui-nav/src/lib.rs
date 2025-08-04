@@ -451,7 +451,7 @@ pub(crate) fn render_bg(
     alpha: u8,
     mut render_route: impl FnMut(&mut egui::Ui),
 ) -> egui::Rect {
-    let id = ui.id().with("bg");
+    let id = ui.id();
 
     let layer_id = LayerId::new(Order::Background, id);
     let mut ui = egui::Ui::new(
