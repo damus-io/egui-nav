@@ -425,7 +425,7 @@ impl Drag {
             // passed a certain point, to determine if we should return
             // or animate back
 
-            if self.offset_from_rest > self.content_size() / 2.0 {
+            if self.offset_from_rest > self.content_size() / 4.0 {
                 return Some(NavAction::Returning(ReturnType::Drag));
             } else {
                 return Some(NavAction::Resetting);
