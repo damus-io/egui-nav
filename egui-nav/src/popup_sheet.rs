@@ -54,6 +54,14 @@ impl<'a, Route: Clone> PopupSheet<'a, Route> {
         self
     }
 
+    fn id(&self, ui: &egui::Ui) -> egui::Id {
+        ui.id().with(("bottom_sheet", self.id_source))
+    }
+
+    pub fn drag_id(&self, ui: &egui::Ui) -> egui::Id {
+        self.id(ui).with("drag")
+    }
+
     /// Call this when you have just pushed a new value to your route and
     /// you want to animate to this new view
     pub fn navigating(mut self, navigating: bool) -> Self {
@@ -88,7 +96,7 @@ impl<'a, Route: Clone> PopupSheet<'a, Route> {
     where
         F: FnMut(&mut egui::Ui, NavUiType, &Route) -> R,
     {
-        let id = ui.id().with(("bottom_sheet", self.id_source));
+        let id = self.id(ui);
 
         let max_height = {
             let rect = ui.available_rect_before_wrap();
@@ -100,20 +108,34 @@ impl<'a, Route: Clone> PopupSheet<'a, Route> {
             popped_min_rect: None,
         });
 
+        let avail_rect = ui.available_rect_before_wrap();
         let (bg_rect, content_rect) = ui
             .available_rect_before_wrap()
             .split_top_bottom_at_y(state.offset);
 
         let offset_from_rest = state.offset - max_height;
-        let drag = Drag::new(
-            id,
+        let mut drag = Drag::new(
+            self.drag_id(ui),
             crate::DragDirection::Vertical,
-            content_rect,
+            avail_rect,
             offset_from_rest,
+            content_rect.height() / 4.0,
+            crate::drag::DragAngle::Balanced,
         );
 
-        if let Some(action) = drag.handle(ui) {
-            state.action = Some(action);
+        if let Some(drag_action) = drag.handle(ui, Vec::new()) {
+            let nav_action = match drag_action {
+                crate::drag::DragAction::Dragging => NavAction::Dragging,
+                crate::drag::DragAction::DragReleased { threshold_met } => {
+                    if threshold_met {
+                        NavAction::Returning(crate::ReturnType::Drag)
+                    } else {
+                        NavAction::Resetting
+                    }
+                }
+                crate::drag::DragAction::DragUnrelated => NavAction::Resetting,
+            };
+            state.action = Some(nav_action);
         }
 
         if self.navigating {

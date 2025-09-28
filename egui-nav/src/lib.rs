@@ -1,4 +1,4 @@
-use drag::{Drag, DragDirection};
+use drag::Drag;
 use egui::{emath::TSTransform, vec2, LayerId, Order, Rect, Vec2};
 
 mod default_ui;
@@ -8,10 +8,11 @@ mod ui;
 mod util;
 
 pub use default_ui::{DefaultNavTitle, DefaultTitleResponse};
+pub use drag::DragDirection;
 pub use popup_sheet::{Percent, PopupResponse, PopupSheet};
 pub use ui::NavUiType;
 
-use crate::drag::drag_delta;
+use crate::drag::{drag_delta, DragAngle};
 
 pub struct Nav<'a, Route: Clone> {
     id_source: Option<egui::Id>,
@@ -64,25 +65,46 @@ impl NavAction {
         ui: &mut egui::Ui,
         state: &mut State,
         drag_direction: DragDirection,
-        offset_at_rest: f32,
-        max_size: f32,
+        navigated_offset: f32,
+        returned_offset: f32,
     ) {
         match self {
             NavAction::Dragging => {
                 state.offset += drag_delta(ui, drag_direction);
-                if state.offset < 0.0 {
-                    state.offset = 0.0;
+                if navigated_offset < returned_offset {
+                    if state.offset < navigated_offset {
+                        // we are outside the navigated boundary
+                        state.offset = navigated_offset;
+                    }
+
+                    if state.offset > returned_offset {
+                        // we are outside the returned boundary
+                        state.offset = returned_offset;
+                    }
+                    return;
+                }
+
+                if navigated_offset > returned_offset {
+                    if state.offset > navigated_offset {
+                        // we are outside the navigated boundary
+                        state.offset = navigated_offset;
+                    }
+                    if state.offset < returned_offset {
+                        // we are outside the returned boundary
+                        state.offset = returned_offset;
+                    }
+                    return;
                 }
             }
             NavAction::Returned(_) => {
                 state.action = None;
-                state.offset = offset_at_rest;
             }
             NavAction::Navigated => {
                 state.action = None;
             }
             NavAction::Navigating => {
-                if let Some(offset) = spring_animate(state.offset, offset_at_rest, true) {
+                let left = state.offset > navigated_offset;
+                if let Some(offset) = spring_animate(state.offset, navigated_offset, left) {
                     ui.ctx().request_repaint();
                     state.offset = offset;
                 } else {
@@ -91,13 +113,14 @@ impl NavAction {
             }
             NavAction::Returning(return_type) => {
                 // We're returning, move the current view off to the
-                // right until the entire view is gone.
+                // returned_offset until the entire view is gone.
 
-                if let Some(offset) = spring_animate(state.offset, max_size, false) {
+                let left = state.offset > returned_offset;
+                if let Some(offset) = spring_animate(state.offset, returned_offset, left) {
                     ui.ctx().request_repaint();
                     state.offset = offset;
                 } else {
-                    state.offset = max_size;
+                    state.offset = returned_offset;
                     state.action = Some(NavAction::Returned(return_type));
                 }
             }
@@ -105,8 +128,8 @@ impl NavAction {
                 // If we're resetting, animate the current offset
                 // back to the current view
 
-                let left = state.offset > offset_at_rest;
-                if let Some(offset) = spring_animate(state.offset, offset_at_rest, left) {
+                let left = state.offset > navigated_offset;
+                if let Some(offset) = spring_animate(state.offset, navigated_offset, left) {
                     ui.ctx().request_repaint();
                     state.offset = offset;
                 } else {
@@ -144,6 +167,7 @@ pub struct NavResponse<R> {
     pub response: R,
     pub title_response: R,
     pub action: Option<NavAction>,
+    pub can_take_drag_from: Vec<egui::Id>,
 }
 
 impl<'a, Route: Clone> Nav<'a, Route> {
@@ -234,47 +258,10 @@ impl<'a, Route: Clone> Nav<'a, Route> {
         let id = self.id(ui);
         let mut state = State::load(ui.ctx(), id).unwrap_or_default();
 
-        // We only handle dragging when there is more than 1 route
-        if self.route.len() > 1 {
-            let drag = Drag::new(
-                self.drag_id(ui),
-                DragDirection::Horizontal,
-                ui.available_rect_before_wrap(),
-                state.offset,
-            );
-            if let Some(action) = drag.handle(ui) {
-                state.action = Some(action);
-            }
-        }
+        let drag_rect = ui.available_rect_before_wrap();
 
-        let title_response = show_route(ui, NavUiType::Title, self);
-
+        let title_response = show_route(ui, NavUiType::Title, self).response;
         let available_rect = ui.available_rect_before_wrap();
-
-        // This should probably override other actions?
-        if self.navigating {
-            if state.action != Some(NavAction::Navigating) {
-                state.offset = available_rect.width();
-                state.action = Some(NavAction::Navigating);
-            }
-        } else if self.returning && !matches!(state.action, Some(NavAction::Returning(_))) {
-            state.action = Some(NavAction::Returning(ReturnType::Click));
-        }
-
-        if let Some(action) = state.action {
-            action.handle(
-                ui,
-                &mut state,
-                DragDirection::Horizontal,
-                0.0,
-                available_rect.width(),
-            );
-        }
-        if matches!(state.action, Some(NavAction::Returned(_))) {
-            state.offset = 0.0;
-        }
-
-        state.store(ui.ctx(), id);
 
         // transition rendering
         // behind transition layer
@@ -349,10 +336,69 @@ impl<'a, Route: Clone> Nav<'a, Route> {
             response
         };
 
+        let ids_to_expose = if self.routes().len() > 1 {
+            Vec::new()
+        } else {
+            fg_resp.can_take_drag_from.clone()
+        };
+
+        // We only handle dragging when there is more than 1 route
+        if self.route.len() > 1 {
+            let content_rect = ui.available_rect_before_wrap();
+            let mut cur_drag = Drag::new(
+                self.drag_id(ui),
+                DragDirection::LeftToRight,
+                drag_rect,
+                state.offset,
+                content_rect.width() / 4.0,
+                DragAngle::Balanced,
+            );
+            if let Some(action) = cur_drag.handle(ui, fg_resp.can_take_drag_from) {
+                let nav_action = match action {
+                    crate::drag::DragAction::Dragging => NavAction::Dragging,
+                    crate::drag::DragAction::DragReleased { threshold_met } => {
+                        if threshold_met {
+                            NavAction::Returning(crate::ReturnType::Drag)
+                        } else {
+                            NavAction::Resetting
+                        }
+                    }
+                    crate::drag::DragAction::DragUnrelated => NavAction::Resetting,
+                };
+                state.action = Some(nav_action);
+            }
+        }
+
+        // This should probably override other actions?
+        if self.navigating {
+            if state.action != Some(NavAction::Navigating) {
+                state.offset = available_rect.width();
+                state.action = Some(NavAction::Navigating);
+            }
+        } else if self.returning && !matches!(state.action, Some(NavAction::Returning(_))) {
+            state.action = Some(NavAction::Returning(ReturnType::Click));
+        }
+
+        if let Some(action) = state.action {
+            action.handle(
+                ui,
+                &mut state,
+                DragDirection::LeftToRight,
+                0.0,
+                available_rect.width(),
+            );
+        }
+        if matches!(state.action, Some(NavAction::Returned(_))) {
+            state.offset = 0.0;
+        }
+
+        state.store(ui.ctx(), id);
+
         NavResponse {
             response: fg_resp.response,
-            title_response: title_response.response,
+            title_response,
             action: state.action,
+            can_take_drag_from: ids_to_expose,
         }
     }
 }
