@@ -1,7 +1,9 @@
 use eframe::egui;
 use egui::Frame;
 use egui_demo_lib::{easy_mark::EasyMarkEditor, ColorTest};
-use egui_nav::{DefaultNavTitle, DefaultTitleResponse, Nav, NavAction, NavUiType, PopupSheet};
+use egui_nav::{
+    DefaultNavTitle, DefaultTitleResponse, Nav, NavAction, NavUiType, PopupSheet, RouteResponse,
+};
 use std::fmt;
 
 fn test_routes() -> Vec<Route> {
@@ -150,11 +152,18 @@ fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
         .navigating(app.navigating)
         .returning(app.returning)
         .show(ui, |ui, typ, nav| match typ {
-            NavUiType::Title => DefaultNavTitle::default()
-                .ui(ui, nav.routes())
-                .map(|n| match n {
-                    DefaultTitleResponse::Back => OurNavAction::Returning,
-                }),
+            NavUiType::Title => {
+                let r = DefaultNavTitle::default()
+                    .ui(ui, nav.routes())
+                    .map(|n| match n {
+                        DefaultTitleResponse::Back => OurNavAction::Returning,
+                    });
+
+                RouteResponse {
+                    response: r,
+                    can_take_drag_from: Vec::new(),
+                }
+            }
 
             NavUiType::Body => match nav.top() {
                 Route::Editor => {
@@ -174,7 +183,10 @@ fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
                         }
 
                         EasyMarkEditor::default().ui(ui);
-                        action
+                        RouteResponse {
+                            response: action,
+                            can_take_drag_from: Vec::new(),
+                        }
                     })
                     .inner
                 }
@@ -189,7 +201,10 @@ fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
                             action = Some(OurNavAction::Returning);
                         }
                         ColorTest::default().ui(ui);
-                        action
+                        RouteResponse {
+                            response: action,
+                            can_take_drag_from: Vec::new(),
+                        }
                     })
                     .inner
                 }

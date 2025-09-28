@@ -214,7 +214,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
 
     pub fn show<F, R>(&self, ui: &mut egui::Ui, show_route: F) -> NavResponse<R>
     where
-        F: Fn(&mut egui::Ui, NavUiType, &Nav<Route>) -> R,
+        F: Fn(&mut egui::Ui, NavUiType, &Nav<Route>) -> RouteResponse<R>,
     {
         let mut show_route = show_route;
         self.show_internal(ui, &mut show_route)
@@ -222,14 +222,14 @@ impl<'a, Route: Clone> Nav<'a, Route> {
 
     pub fn show_mut<F, R>(&self, ui: &mut egui::Ui, mut show_route: F) -> NavResponse<R>
     where
-        F: FnMut(&mut egui::Ui, NavUiType, &Nav<Route>) -> R,
+        F: FnMut(&mut egui::Ui, NavUiType, &Nav<Route>) -> RouteResponse<R>,
     {
         self.show_internal(ui, &mut show_route)
     }
 
     fn show_internal<F, R>(&self, ui: &mut egui::Ui, show_route: &mut F) -> NavResponse<R>
     where
-        F: FnMut(&mut egui::Ui, NavUiType, &Nav<Route>) -> R,
+        F: FnMut(&mut egui::Ui, NavUiType, &Nav<Route>) -> RouteResponse<R>,
     {
         let id = self.id(ui);
         let mut state = State::load(ui.ctx(), id).unwrap_or_default();
@@ -304,15 +304,20 @@ impl<'a, Route: Clone> Nav<'a, Route> {
 
             let strength = 50.0; // fade strength (max is 255)
             let alpha = ((1.0 - (state.offset / available_rect.width())) * strength) as u8;
-            let min_rect = render_bg(ui, Some(translate_vec), clip, available_rect, alpha, |ui| {
-                show_route(ui, NavUiType::Body, &bg_nav);
-            });
+            let bg_resp = render_bg(
+                ui,
+                Some(translate_vec),
+                clip,
+                available_rect,
+                Some(alpha),
+                |ui| show_route(ui, NavUiType::Body, &bg_nav).can_take_drag_from,
+            );
 
-            state.popped_min_rect = Some(min_rect);
-        }
+            state.popped_min_rect = Some(bg_resp.rect);
+        };
 
         // foreground layer
-        {
+        let fg_resp = {
             let clip = Rect::from_min_size(
                 available_rect.min,
                 vec2(
@@ -321,32 +326,33 @@ impl<'a, Route: Clone> Nav<'a, Route> {
                 ),
             );
 
+            let layer_id = if transitioning {
+                // when transitioning, we need a new layer id otherwise the
+                // view transform will transform more things than we want
+                LayerId::new(Order::Foreground, ui.id().with("fg"))
+            } else {
+                // if we don't use the same layer id as the ui, then we
+                // will have scrollview MouseWheel scroll issues due to
+                // the way rect_contains_pointer works with overlapping
+                // layers
+                ui.layer_id()
+            };
             let response = render_fg(
                 ui,
-                transitioning,
+                ui.id(), // this must be ui.id() to not break scroll positions
+                layer_id,
                 Some(Vec2::new(state.offset, 0.0)),
                 clip,
                 available_rect,
-                |ui| {
-                    if matches!(state.action, Some(NavAction::Returned(_))) {
-                        // to avoid a flicker, render the popped route when we
-                        // are in the returned state
-                        let nav = Nav {
-                            route: &self.route[..self.route.len() - 1],
-                            ..*self
-                        };
-                        show_route(ui, NavUiType::Body, &nav)
-                    } else {
-                        show_route(ui, NavUiType::Body, self)
-                    }
-                },
+                |ui| show_route(ui, NavUiType::Body, self),
             );
+            response
+        };
 
-            NavResponse {
-                response,
-                title_response,
-                action: state.action,
-            }
+        NavResponse {
+            response: fg_resp.response,
+            title_response: title_response.response,
+            action: state.action,
         }
     }
 }
@@ -387,9 +393,9 @@ pub(crate) fn render_bg(
     translate_vec: Option<egui::Vec2>, // whether to translate the rendered route
     clip: egui::Rect,                  // rect that should be clipped
     available_rect: egui::Rect,        // rect of viewing area
-    alpha: u8,
-    mut render_route: impl FnMut(&mut egui::Ui),
-) -> egui::Rect {
+    alpha: Option<u8>,
+    mut render_route: impl FnMut(&mut egui::Ui) -> Vec<egui::Id>,
+) -> RenderBgResponse {
     let id = ui.id();
 
     let layer_id = LayerId::new(Order::Background, id);
@@ -402,52 +408,57 @@ pub(crate) fn render_bg(
     );
     ui.set_clip_rect(clip);
 
-    render_route(&mut ui);
+    let can_take_drag_from = render_route(&mut ui);
 
     let res = ui.min_rect();
 
-    let fade_color = egui::Color32::from_black_alpha(alpha);
+    if let Some(alpha) = alpha {
+        let fade_color = egui::Color32::from_black_alpha(alpha);
 
-    ui.painter()
-        .rect_filled(clip, egui::CornerRadius::default(), fade_color);
+        ui.painter()
+            .rect_filled(clip, egui::CornerRadius::default(), fade_color);
+    }
 
     let Some(translate_vec) = translate_vec else {
-        return res;
+        return RenderBgResponse {
+            rect: res,
+            can_take_drag_from,
+        };
     };
 
     if translate_vec == Vec2::ZERO {
-        return res;
+        return RenderBgResponse {
+            rect: res,
+            can_take_drag_from,
+        };
     }
 
     ui.ctx()
         .transform_layer_shapes(ui.layer_id(), TSTransform::from_translation(translate_vec));
 
-    res
+    return RenderBgResponse {
+        rect: res,
+        can_take_drag_from,
+    };
+}
+
+struct RenderBgResponse {
+    rect: egui::Rect,
+    can_take_drag_from: Vec<egui::Id>,
 }
 
 pub(crate) fn render_fg<R>(
     ui: &mut egui::Ui,
-    transitioning: bool,
+    id: egui::Id,
+    layer_id: LayerId,
     translate_vec: Option<egui::Vec2>, // whether to translate the rendered route
     clip: egui::Rect,
     available_rect: egui::Rect,
-    mut render_route: impl FnMut(&mut egui::Ui) -> R,
-) -> R {
-    let layer_id = if transitioning {
-        // when transitioning, we need a new layer id otherwise the
-        // view transform will transform more things than we want
-        LayerId::new(Order::Foreground, ui.id().with("fg"))
-    } else {
-        // if we don't use the same layer id as the ui, then we
-        // will have scrollview MouseWheel scroll issues due to
-        // the way rect_contains_pointer works with overlapping
-        // layers
-        ui.layer_id()
-    };
-
+    mut render_route: impl FnMut(&mut egui::Ui) -> RouteResponse<R>,
+) -> RouteResponse<R> {
     let mut ui = egui::Ui::new(
         ui.ctx().clone(),
-        ui.id(),
+        id,
         egui::UiBuilder::new()
             .layer_id(layer_id)
             .max_rect(available_rect),
@@ -470,4 +481,9 @@ pub(crate) fn render_fg<R>(
     );
 
     res
+}
+
+pub struct RouteResponse<R> {
+    pub response: R,
+    pub can_take_drag_from: Vec<egui::Id>,
 }

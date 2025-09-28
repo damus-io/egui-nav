@@ -1,4 +1,4 @@
-use crate::{render_bg, render_fg, Drag, NavAction, NavUiType, State};
+use crate::{render_bg, render_fg, Drag, NavAction, NavUiType, RouteResponse, State};
 
 pub struct PopupSheet<'a, Route: Clone> {
     id_source: Option<egui::Id>,
@@ -142,11 +142,12 @@ impl<'a, Route: Clone> PopupSheet<'a, Route> {
             (t * 255.0).round() as u8
         };
 
-        let min_rect = render_bg(ui, None, bg_rect, bg_rect, alpha, |ui| {
+        let bg_resp = render_bg(ui, None, bg_rect, bg_rect, Some(alpha), |ui| {
             show_route(ui, NavUiType::Title, self.bg_route);
             show_route(ui, NavUiType::Body, self.bg_route);
+            Vec::new()
         });
-        state.popped_min_rect = Some(min_rect);
+        state.popped_min_rect = Some(bg_resp.rect);
 
         let bg_resp = ui.allocate_rect(bg_rect, egui::Sense::click());
 
@@ -158,18 +159,25 @@ impl<'a, Route: Clone> PopupSheet<'a, Route> {
 
         let response = render_fg(
             ui,
-            state.is_transitioning(),
+            id.with("fg"),
+            egui::LayerId::new(egui::Order::Foreground, id.with("fg")),
             None,
             content_rect,
             content_rect,
             |ui| {
-                if matches!(state.action, Some(NavAction::Returned(_))) {
+                let r = if matches!(state.action, Some(NavAction::Returned(_))) {
                     show_route(ui, NavUiType::Body, self.bg_route)
                 } else {
                     show_route(ui, NavUiType::Body, self.fg_route)
+                };
+
+                RouteResponse {
+                    response: r,
+                    can_take_drag_from: Vec::new(),
                 }
             },
-        );
+        )
+        .response;
 
         PopupResponse {
             response,
