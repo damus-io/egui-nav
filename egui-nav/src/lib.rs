@@ -3,12 +3,14 @@ use egui::{emath::TSTransform, vec2, LayerId, Order, Rect, Vec2};
 
 mod default_ui;
 mod drag;
+mod drawer;
 mod popup_sheet;
 mod ui;
 mod util;
 
 pub use default_ui::{DefaultNavTitle, DefaultTitleResponse};
 pub use drag::DragDirection;
+pub use drawer::{DrawerResponse, NavDrawer};
 pub use popup_sheet::{Percent, PopupResponse, PopupSheet};
 pub use ui::NavUiType;
 
