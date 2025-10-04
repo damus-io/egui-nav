@@ -4,9 +4,15 @@ pub struct PopupSheet<'a, Route: Clone> {
     id_source: Option<egui::Id>,
     bg_route: &'a Route,
     fg_route: &'a Route,
-    split_percentage: Percent,
+    split: Split,
     navigating: bool,
     returning: bool,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum Split {
+    PercentFromTop(Percent),
+    AbsoluteFromBottom(f32),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -37,15 +43,15 @@ impl<'a, Route: Clone> PopupSheet<'a, Route> {
         Self {
             bg_route,
             fg_route,
-            split_percentage: Percent(50),
+            split: Split::PercentFromTop(Percent(50)),
             navigating: false,
             returning: false,
             id_source: None,
         }
     }
 
-    pub fn with_split_percent_from_top(mut self, percent: Percent) -> Self {
-        self.split_percentage = percent;
+    pub fn with_split(mut self, split: Split) -> Self {
+        self.split = split;
         self
     }
 
@@ -98,9 +104,15 @@ impl<'a, Route: Clone> PopupSheet<'a, Route> {
     {
         let id = self.id(ui);
 
-        let max_height = {
-            let rect = ui.available_rect_before_wrap();
-            rect.top() + self.split_percentage.of(rect.bottom() - rect.top())
+        let max_height = match self.split {
+            Split::PercentFromTop(percent) => {
+                let rect = ui.available_rect_before_wrap();
+                rect.top() + percent.of(rect.bottom() - rect.top())
+            }
+            Split::AbsoluteFromBottom(from_bottom) => {
+                let avail_height = ui.available_height();
+                (avail_height - from_bottom).clamp(0.0, avail_height)
+            }
         };
         let mut state = State::load(ui.ctx(), id).unwrap_or(State {
             offset: max_height,

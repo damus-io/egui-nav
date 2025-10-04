@@ -11,7 +11,7 @@ mod util;
 pub use default_ui::{DefaultNavTitle, DefaultTitleResponse};
 pub use drag::DragDirection;
 pub use drawer::{DrawerResponse, NavDrawer};
-pub use popup_sheet::{Percent, PopupResponse, PopupSheet};
+pub use popup_sheet::{Percent, PopupResponse, PopupSheet, Split};
 pub use ui::NavUiType;
 
 use crate::drag::{drag_delta, DragAngle};
