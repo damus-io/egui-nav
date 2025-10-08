@@ -12,6 +12,7 @@ pub struct NavDrawer<'a, Route: Clone> {
     navigating: bool,
     returning: bool,
     drawer_focused: bool,
+    use_drag: bool,
 }
 
 impl<'a, Route: Clone> NavDrawer<'a, Route> {
@@ -24,6 +25,7 @@ impl<'a, Route: Clone> NavDrawer<'a, Route> {
             navigating: false,
             returning: false,
             drawer_focused: false,
+            use_drag: true,
         }
     }
 
@@ -53,6 +55,11 @@ impl<'a, Route: Clone> NavDrawer<'a, Route> {
 
     pub fn drawer_focused(mut self, focused: bool) -> Self {
         self.drawer_focused = focused;
+        self
+    }
+
+    pub fn drag(mut self, use_drag: bool) -> Self {
+        self.use_drag = use_drag;
         self
     }
 
@@ -114,26 +121,30 @@ impl<'a, Route: Clone> NavDrawer<'a, Route> {
             .can_take_drag_from
         };
 
-        let mut drag = Drag::new(
-            self.drag_id(ui),
-            if self.drawer_focused {
-                DragDirection::all()
-            } else {
-                DragDirection::LeftToRight
-            },
-            drag_content_rect,
-            if self.drawer_focused {
-                (state.offset - self.drawer_end_offset).abs()
-            } else {
-                state.offset
-            },
-            0.1,
-            if self.drawer_focused {
-                DragAngle::Balanced
-            } else {
-                DragAngle::VerticalNTimesEasier(5)
-            },
-        );
+        let drag = if self.use_drag {
+            Some(Drag::new(
+                self.drag_id(ui),
+                if self.drawer_focused {
+                    DragDirection::all()
+                } else {
+                    DragDirection::LeftToRight
+                },
+                drag_content_rect,
+                if self.drawer_focused {
+                    (state.offset - self.drawer_end_offset).abs()
+                } else {
+                    state.offset
+                },
+                0.1,
+                if self.drawer_focused {
+                    DragAngle::Balanced
+                } else {
+                    DragAngle::VerticalNTimesEasier(5)
+                },
+            ))
+        } else {
+            None
+        };
 
         if self.navigating {
             if state.action != Some(NavAction::Navigating) {
@@ -145,6 +156,10 @@ impl<'a, Route: Clone> NavDrawer<'a, Route> {
         }
 
         's: {
+            let Some(mut drag) = drag else {
+                break 's;
+            };
+
             let Some(action) = drag.handle(ui, can_take_drag_from) else {
                 break 's;
             };
