@@ -89,8 +89,8 @@ impl Drag {
                         }
                     };
                 }
-                remove_state(ui.ctx());
             }
+            remove_state(ui.ctx());
         };
 
         resp
@@ -117,21 +117,30 @@ impl Drag {
             return false;
         }
 
+        if let Some(dir) = ui
+            .ctx()
+            .data(|d| d.get_temp(state_id()))
+            .map(|s: DragState| s.cur_direction)
+            .flatten()
+        {
+            return self.direction.contains(dir);
+        }
+
         let Some(cur_direction) = cur_direction(origin, latest, self.angle) else {
             return false;
         };
-
-        if !self.direction.contains(cur_direction) {
-            return false;
-        }
 
         self.insert_state(
             ui.ctx(),
             DragState {
                 start_pos: origin,
-                cur_direction,
+                cur_direction: Some(cur_direction),
             },
         );
+
+        if !self.direction.contains(cur_direction) {
+            return false;
+        }
 
         let _ = ui.interact(self.content_rect, self.id, egui::Sense::drag());
 
@@ -143,12 +152,16 @@ impl Drag {
     }
 
     fn get_direction(&self, state: &DragState) -> HandleDragDirection {
+        let Some(cur_direction) = state.cur_direction else {
+            return HandleDragDirection::DirectionInconclusive;
+        };
+
         if !self.content_rect.contains(state.start_pos) {
             // the start position isn't in the content rect, the interaction doesn't pertain to this widget
             return HandleDragDirection::DirectionInconclusive;
         }
 
-        if self.direction.contains(state.cur_direction) {
+        if self.direction.contains(cur_direction) {
             HandleDragDirection::CorrectDirection
         } else {
             HandleDragDirection::DirectionInconclusive
@@ -189,9 +202,11 @@ fn remove_state(ctx: &egui::Context) {
 #[derive(Clone, Debug)]
 pub struct DragState {
     pub(crate) start_pos: Pos2,
-    pub(crate) cur_direction: DragDirection,
+    pub(crate) cur_direction: Option<DragDirection>,
 }
 
+/// Conclusively determine the direction the user meant to drag.
+/// If we can't make a conclusive decision, return None
 fn cur_direction(start: Pos2, cur_pos: Pos2, angle: DragAngle) -> Option<DragDirection> {
     let dx = start.x - cur_pos.x;
     let dy = start.y - cur_pos.y;
@@ -203,9 +218,16 @@ fn cur_direction(start: Pos2, cur_pos: Pos2, angle: DragAngle) -> Option<DragDir
         return None;
     }
 
+    // we shouldn't make a decision until the user is far enough away in the X direction
+    if dx.abs() < 48.0 {
+        return None;
+    }
+
     let is_vertical = match angle {
         DragAngle::Balanced => dy.abs() > dx.abs(),
-        DragAngle::VerticalNTimesEasier(n) => dy.abs() * n as f32 > dx.abs(), // we want to make vertical extremely easy to hit
+        DragAngle::VerticalNTimesEasier(n) => {
+            dy.abs() * n as f32 > dx.abs() // we want to make vertical extremely easy to hit
+        }
     };
 
     let resp = Some(if is_vertical {
