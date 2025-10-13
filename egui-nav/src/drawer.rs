@@ -160,6 +160,7 @@ impl<'a, Route: Clone> NavDrawer<'a, Route> {
                 break 's;
             };
 
+            // drag is handled AFTER bg is rendered so we can get the ids which we are allowed to take drag from
             let Some(action) = drag.handle(ui, can_take_drag_from) else {
                 break 's;
             };
@@ -186,6 +187,9 @@ impl<'a, Route: Clone> NavDrawer<'a, Route> {
             state.action = Some(nav_action);
         }
 
+        // we must use the old offset for the fg since bg was rendered before the drag was handled
+        let offset = state.offset;
+
         if let Some(action) = state.action {
             action.handle(ui, &mut state, DragDirection::LeftToRight, max, rest);
         }
@@ -204,14 +208,18 @@ impl<'a, Route: Clone> NavDrawer<'a, Route> {
             state.action = Some(NavAction::Returning(crate::ReturnType::Click));
         }
 
+        let translate = egui::vec2((offset - max).min(0.0), 0.0);
+        let clip_rect =
+            egui::Rect::from_min_size(drawer_rect.min, egui::vec2(max, drawer_rect.height()));
+
         let drawer_response = Some(
             render_fg(
                 ui,
                 id.with("fg"),
                 LayerId::new(Order::Foreground, id.with("fg")),
-                None,
-                drawer_rect,
-                drawer_rect,
+                Some(translate),
+                clip_rect,
+                clip_rect,
                 |ui| show_route(ui, self.drawer_route),
             )
             .response,
