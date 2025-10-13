@@ -218,15 +218,17 @@ fn cur_direction(start: Pos2, cur_pos: Pos2, angle: DragAngle) -> Option<DragDir
         return None;
     }
 
-    // we shouldn't make a decision until the user is far enough away in the X direction
-    if dx.abs() < 48.0 {
-        return None;
-    }
-
     let is_vertical = match angle {
         DragAngle::Balanced => dy.abs() > dx.abs(),
-        DragAngle::VerticalNTimesEasier(n) => {
-            dy.abs() * n as f32 > dx.abs() // we want to make vertical extremely easy to hit
+        DragAngle::Custom(params) => {
+            if let Some(ignore_x_width) = params.ignore_x_width {
+                // we shouldn't make a decision until the user is far enough away in the X direction
+                if dx.abs() < ignore_x_width {
+                    return None;
+                }
+            }
+
+            dy.abs() * params.vertical_n_times_easier as f32 > dx.abs() // we want to make vertical extremely easy to hit
         }
     };
 
@@ -244,7 +246,27 @@ fn cur_direction(start: Pos2, cur_pos: Pos2, angle: DragAngle) -> Option<DragDir
 #[derive(Clone, Copy, Debug)]
 pub enum DragAngle {
     Balanced,
-    VerticalNTimesEasier(u8),
+    Custom(DragParams),
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct DragParams {
+    vertical_n_times_easier: u8,
+    ignore_x_width: Option<f32>,
+}
+
+impl DragParams {
+    pub fn new(vertical_preference: u8) -> Self {
+        Self {
+            vertical_n_times_easier: vertical_preference,
+            ignore_x_width: None,
+        }
+    }
+
+    pub fn ignore_x_width(mut self, width: f32) -> Self {
+        self.ignore_x_width = Some(width);
+        self
+    }
 }
 
 pub(crate) fn drag_delta(ui: &mut egui::Ui, direction: DragDirection) -> f32 {

@@ -1,7 +1,8 @@
 use egui::{LayerId, Order};
 
 use crate::{
-    drag::DragAngle, render_bg, render_fg, Drag, DragDirection, NavAction, RouteResponse, State,
+    drag::{DragAngle, DragParams},
+    render_bg, render_fg, Drag, DragDirection, NavAction, RouteResponse, State,
 };
 
 pub struct NavDrawer<'a, Route: Clone> {
@@ -139,7 +140,7 @@ impl<'a, Route: Clone> NavDrawer<'a, Route> {
                 if self.drawer_focused {
                     DragAngle::Balanced
                 } else {
-                    DragAngle::VerticalNTimesEasier(5)
+                    DragAngle::Custom(DragParams::new(5).ignore_x_width(48.0))
                 },
             ))
         } else {
