@@ -1,6 +1,7 @@
 use egui::Pos2;
 
 use bitflags::bitflags;
+use tracing::trace;
 
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -44,6 +45,7 @@ impl Drag {
         ui: &mut egui::Ui,
         can_take_from: Vec<egui::Id>,
     ) -> Option<DragAction> {
+        trace!("called Drag::handle");
         if ui.ctx().dragged_id().is_none()
             && ui.ctx().input(|i| {
                 let pointer = &i.pointer;
@@ -54,14 +56,17 @@ impl Drag {
                         .is_some_and(|origin| self.content_rect.contains(origin))
             })
         {
+            trace!("SET (stole) dragged_id {:?}", self.id);
             ui.ctx().set_dragged_id(self.id);
         }
 
         let mut resp = None;
         if let Some(dragged_id) = ui.ctx().dragged_id() {
+            trace!("user is dragging: {dragged_id:?}");
             let can_take_drag_id = can_take_from.contains(&dragged_id);
             if can_take_drag_id || dragged_id == self.id {
                 if self.handle_dragging(ui, dragged_id, can_take_drag_id) {
+                    trace!("got action DragAction::Dragging");
                     resp = Some(DragAction::Dragging)
                 }
             } else {
@@ -73,23 +78,27 @@ impl Drag {
 
         if let Some(dragged_id) = ui.ctx().dragged_id() {
             if dragged_id == self.id && !ui.ctx().input(|i| i.pointer.primary_down()) {
+                trace!("stopped dragging since the dragged id ({dragged_id:?}) is Our drag id and the pointer isn't down");
                 ui.ctx().stop_dragging();
             }
         }
 
         if let Some(stopped_id) = ui.ctx().drag_stopped_id() {
             if stopped_id == self.id {
+                trace!("received drag stopped id and it is our Drag id");
                 if let Some(state) = get_state(ui.ctx()) {
                     resp = match self.get_direction(&state) {
                         HandleDragDirection::CorrectDirection => Some(DragAction::DragReleased {
                             threshold_met: self.offset_from_rest >= self.threshold,
                         }),
                         HandleDragDirection::DirectionInconclusive => {
+                            trace!("the direction is inconclusive");
                             Some(DragAction::DragUnrelated)
                         }
                     };
                 }
             }
+            trace!("removed DragState");
             remove_state(ui.ctx());
         };
 
@@ -110,12 +119,16 @@ impl Drag {
             .input(|i| Some((i.pointer.press_origin()?, i.pointer.latest_pos()?)));
 
         let Some((origin, latest)) = vals else {
+            trace!("not dragging because we don't have origin & latest positions");
             return false;
         };
+        trace!("have origin ({origin}) and latest ({latest}) positions");
 
         if !self.content_rect.contains(origin) {
+            trace!("not dragging because the origin isn't in our content rect");
             return false;
         }
+        trace!("content rect DOES contain origin");
 
         if let Some(dir) = ui
             .ctx()
@@ -123,12 +136,21 @@ impl Drag {
             .map(|s: DragState| s.cur_direction)
             .flatten()
         {
-            return self.direction.contains(dir);
+            let val = self.direction.contains(dir);
+            if !val {
+                trace!("not dragging because the direction from state ({dir:?}) isn't desired");
+            } else {
+                trace!("dragging because state's direction is desired");
+            }
+            return val;
         }
 
         let Some(cur_direction) = cur_direction(origin, latest, self.angle) else {
+            trace!("not dragging because the current direction is still undecided");
             return false;
         };
+
+        trace!("DECIDED the current direction");
 
         self.insert_state(
             ui.ctx(),
@@ -138,13 +160,19 @@ impl Drag {
             },
         );
 
+        trace!("INSERTED DragState");
+
         if !self.direction.contains(cur_direction) {
+            trace!("not dragging because the current direction ({cur_direction:?}) isn't desired");
             return false;
         }
+
+        trace!("the current direction is desired");
 
         let _ = ui.interact(self.content_rect, self.id, egui::Sense::drag());
 
         if set_dragged && dragged_id != self.id {
+            trace!("SET dragged_id (have explicit permission): {:?}", self.id);
             ctx.set_dragged_id(self.id);
         }
 
