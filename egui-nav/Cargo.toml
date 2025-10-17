@@ -12,4 +12,5 @@ license = "MIT"
 egui = { workspace = true }
 egui_extras =  { workspace = true }
 bitflags = "2.5.0"
+tracing = { version = "0.1.40" }
  

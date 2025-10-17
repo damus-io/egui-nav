@@ -1629,6 +1629,7 @@ dependencies = [
  "bitflags 2.9.0",
  "egui",
  "egui_extras",
+ "tracing",
 ]
 
 [[package]]
