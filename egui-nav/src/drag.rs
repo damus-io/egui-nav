@@ -96,10 +96,10 @@ impl Drag {
                             Some(DragAction::DragUnrelated)
                         }
                     };
+                    trace!("removed DragState");
+                    remove_state(ui.ctx());
                 }
             }
-            trace!("removed DragState");
-            remove_state(ui.ctx());
         };
 
         resp
@@ -152,6 +152,13 @@ impl Drag {
 
         trace!("DECIDED the current direction");
 
+        if !self.direction.contains(cur_direction) {
+            trace!("not dragging because the current direction ({cur_direction:?}) isn't desired");
+            return false;
+        }
+
+        trace!("the current direction is desired");
+
         self.insert_state(
             ui.ctx(),
             DragState {
@@ -159,15 +166,7 @@ impl Drag {
                 cur_direction: Some(cur_direction),
             },
         );
-
         trace!("INSERTED DragState");
-
-        if !self.direction.contains(cur_direction) {
-            trace!("not dragging because the current direction ({cur_direction:?}) isn't desired");
-            return false;
-        }
-
-        trace!("the current direction is desired");
 
         let _ = ui.interact(self.content_rect, self.id, egui::Sense::drag());
 
