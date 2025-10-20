@@ -265,6 +265,16 @@ impl<'a, Route: Clone> Nav<'a, Route> {
         let title_response = show_route(ui, NavUiType::Title, self).response;
         let available_rect = ui.available_rect_before_wrap();
 
+        // This should probably override other actions?
+        if self.navigating {
+            if state.action != Some(NavAction::Navigating) {
+                state.offset = available_rect.width();
+                state.action = Some(NavAction::Navigating);
+            }
+        } else if self.returning && !matches!(state.action, Some(NavAction::Returning(_))) {
+            state.action = Some(NavAction::Returning(ReturnType::Click));
+        }
+
         // transition rendering
         // behind transition layer
         let transitioning = state.is_transitioning();
@@ -369,16 +379,6 @@ impl<'a, Route: Clone> Nav<'a, Route> {
                 };
                 state.action = Some(nav_action);
             }
-        }
-
-        // This should probably override other actions?
-        if self.navigating {
-            if state.action != Some(NavAction::Navigating) {
-                state.offset = available_rect.width();
-                state.action = Some(NavAction::Navigating);
-            }
-        } else if self.returning && !matches!(state.action, Some(NavAction::Returning(_))) {
-            state.action = Some(NavAction::Returning(ReturnType::Click));
         }
 
         if let Some(action) = state.action {
