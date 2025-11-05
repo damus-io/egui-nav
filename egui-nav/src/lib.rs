@@ -325,20 +325,24 @@ impl<'a, Route: Clone> Nav<'a, Route> {
                 ),
             );
 
-            let layer_id = if transitioning {
+            let (layer_id, fg_id) = if transitioning {
                 // when transitioning, we need a new layer id otherwise the
                 // view transform will transform more things than we want
-                LayerId::new(Order::Foreground, ui.id().with("fg"))
+                // We also need a distinct widget ID to match the layer change
+                (
+                    LayerId::new(Order::Foreground, ui.id().with("fg")),
+                    ui.id().with("fg"),
+                )
             } else {
                 // if we don't use the same layer id as the ui, then we
                 // will have scrollview MouseWheel scroll issues due to
                 // the way rect_contains_pointer works with overlapping
                 // layers
-                ui.layer_id()
+                (ui.layer_id(), ui.id())
             };
             let response = render_fg(
                 ui,
-                ui.id(), // this must be ui.id() to not break scroll positions
+                fg_id,
                 layer_id,
                 Some(Vec2::new(state.offset, 0.0)),
                 clip,
