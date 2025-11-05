@@ -192,7 +192,7 @@ impl<'a, Route: Clone> NavDrawer<'a, Route> {
         let offset = state.offset;
 
         if let Some(action) = state.action {
-            action.handle(ui, &mut state, DragDirection::LeftToRight, max, rest);
+            action.handle(ui, &mut state, DragDirection::LeftToRight, max, rest, true);
         }
 
         if state.offset == rest {
