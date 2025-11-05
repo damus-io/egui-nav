@@ -168,6 +168,7 @@ impl<'a, Route: Clone> PopupSheet<'a, Route> {
                 crate::DragDirection::Vertical,
                 max_height,
                 max_size,
+                true,
             );
         }
 

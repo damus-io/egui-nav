@@ -21,6 +21,7 @@ pub struct Nav<'a, Route: Clone> {
     route: &'a [Route],
     navigating: bool,
     returning: bool,
+    animate_transitions: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -69,6 +70,7 @@ impl NavAction {
         drag_direction: DragDirection,
         navigated_offset: f32,
         returned_offset: f32,
+        animate: bool,
     ) {
         match self {
             NavAction::Dragging => {
@@ -105,6 +107,11 @@ impl NavAction {
                 state.action = None;
             }
             NavAction::Navigating => {
+                if !animate {
+                    state.offset = navigated_offset;
+                    state.action = Some(NavAction::Navigated);
+                    return;
+                }
                 let left = state.offset > navigated_offset;
                 if let Some(offset) = spring_animate(state.offset, navigated_offset, left) {
                     ui.ctx().request_repaint();
@@ -114,6 +121,11 @@ impl NavAction {
                 }
             }
             NavAction::Returning(return_type) => {
+                if !animate {
+                    state.offset = returned_offset;
+                    state.action = Some(NavAction::Returned(return_type));
+                    return;
+                }
                 // We're returning, move the current view off to the
                 // returned_offset until the entire view is gone.
 
@@ -180,12 +192,14 @@ impl<'a, Route: Clone> Nav<'a, Route> {
         let navigating = false;
         let returning = false;
         let id_source = None;
+        let animate_transitions = true;
 
         Nav {
             id_source,
             navigating,
             returning,
             route,
+            animate_transitions,
         }
     }
 
@@ -205,6 +219,11 @@ impl<'a, Route: Clone> Nav<'a, Route> {
     /// previous view
     pub fn returning(mut self, returning: bool) -> Self {
         self.returning = returning;
+        self
+    }
+
+    pub fn animate_transitions(mut self, animate: bool) -> Self {
+        self.animate_transitions = animate;
         self
     }
 
@@ -392,9 +411,10 @@ impl<'a, Route: Clone> Nav<'a, Route> {
                 DragDirection::LeftToRight,
                 0.0,
                 available_rect.width(),
+                self.animate_transitions,
             );
         }
-        if matches!(state.action, Some(NavAction::Returned(_))) {
+        if matches!(state.action, Some(NavAction::Returned(_)) | Some(NavAction::Navigated)) {
             state.offset = 0.0;
         }
 
