@@ -97,7 +97,6 @@ impl NavAction {
                         // we are outside the returned boundary
                         state.offset = returned_offset;
                     }
-                    return;
                 }
             }
             NavAction::Returned(_) => {
@@ -355,7 +354,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
                 // layers
                 ui.layer_id()
             };
-            let response = render_fg(
+            render_fg(
                 ui,
                 ui.id(), // this must be ui.id() to not break scroll positions
                 layer_id,
@@ -363,8 +362,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
                 clip,
                 available_rect,
                 |ui| show_route(ui, NavUiType::Body, self),
-            );
-            response
+            )
         };
 
         let ids_to_expose = if self.routes().len() > 1 {
@@ -410,7 +408,10 @@ impl<'a, Route: Clone> Nav<'a, Route> {
                 self.animate_transitions,
             );
         }
-        if matches!(state.action, Some(NavAction::Returned(_)) | Some(NavAction::Navigated)) {
+        if matches!(
+            state.action,
+            Some(NavAction::Returned(_)) | Some(NavAction::Navigated)
+        ) {
             state.offset = 0.0;
         }
 
@@ -504,10 +505,10 @@ pub(crate) fn render_bg(
     ui.ctx()
         .transform_layer_shapes(ui.layer_id(), TSTransform::from_translation(translate_vec));
 
-    return RenderBgResponse {
+    RenderBgResponse {
         rect: res,
         can_take_drag_from,
-    };
+    }
 }
 
 struct RenderBgResponse {

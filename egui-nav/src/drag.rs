@@ -69,10 +69,8 @@ impl Drag {
                     trace!("got action DragAction::Dragging");
                     resp = Some(DragAction::Dragging)
                 }
-            } else {
-                if self.offset_from_rest > 0.0 {
-                    resp = Some(DragAction::DragUnrelated);
-                }
+            } else if self.offset_from_rest > 0.0 {
+                resp = Some(DragAction::DragUnrelated);
             }
         };
 
@@ -133,8 +131,7 @@ impl Drag {
         if let Some(dir) = ui
             .ctx()
             .data(|d| d.get_temp(state_id()))
-            .map(|s: DragState| s.cur_direction)
-            .flatten()
+            .and_then(|s: DragState| s.cur_direction)
         {
             let val = self.direction.contains(dir);
             if !val {
@@ -259,15 +256,13 @@ fn cur_direction(start: Pos2, cur_pos: Pos2, angle: DragAngle) -> Option<DragDir
         }
     };
 
-    let resp = Some(if is_vertical {
+    Some(if is_vertical {
         DragDirection::Vertical
     } else if dx >= 0.0 {
         DragDirection::RightToLeft
     } else {
         DragDirection::LeftToRight
-    });
-
-    resp
+    })
 }
 
 #[derive(Clone, Copy, Debug)]

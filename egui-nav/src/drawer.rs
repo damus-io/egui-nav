@@ -175,12 +175,10 @@ impl<'a, Route: Clone> NavDrawer<'a, Route> {
                         } else {
                             NavAction::Resetting
                         }
+                    } else if threshold_met {
+                        NavAction::Navigating
                     } else {
-                        if threshold_met {
-                            NavAction::Navigating
-                        } else {
-                            NavAction::Returning(crate::ReturnType::Drag)
-                        }
+                        NavAction::Returning(crate::ReturnType::Drag)
                     }
                 }
                 crate::drag::DragAction::DragUnrelated => NavAction::Resetting,
