@@ -239,10 +239,10 @@ fn nav_ui(ui: &mut egui::Ui, app: &mut MyApp) {
 }
 
 impl eframe::App for MyApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default()
             .frame(Frame::new().outer_margin(egui::Margin::same(50)))
-            .show(ctx, |ui| {
+            .show(ui, |ui| {
                 let cells = 2;
                 let width = ui.available_rect_before_wrap().width() / (cells as f32);
 
