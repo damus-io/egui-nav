@@ -293,6 +293,26 @@ impl<'a, Route: Clone> Nav<'a, Route> {
             state.action = Some(NavAction::Returning(ReturnType::Click));
         }
 
+        // Without animations there is nothing to show between the two
+        // routes, so finish the push or back this frame. Starting a
+        // transition would draw the previous route on a background layer
+        // and the top route on a foreground layer, and an app that draws
+        // both with the same widget ids would move widgets between layers
+        // mid-frame.
+        let finished = if self.animate_transitions {
+            None
+        } else {
+            match state.action {
+                Some(NavAction::Navigating) => Some(NavAction::Navigated),
+                Some(NavAction::Returning(return_type)) => Some(NavAction::Returned(return_type)),
+                _ => None,
+            }
+        };
+        if finished.is_some() {
+            state.action = finished;
+            state.offset = 0.0;
+        }
+
         // transition rendering
         // behind transition layer
         let transitioning = state.is_transitioning();
@@ -398,7 +418,9 @@ impl<'a, Route: Clone> Nav<'a, Route> {
             }
         }
 
-        if let Some(action) = state.action {
+        // a push or back finished above is reported this frame, and
+        // handled (cleared) on the next one
+        if let Some(action) = state.action.filter(|a| Some(*a) != finished) {
             action.handle(
                 ui,
                 &mut state,
@@ -557,4 +579,82 @@ pub(crate) fn render_fg<R>(
 pub struct RouteResponse<R> {
     pub response: R,
     pub can_take_drag_from: Vec<egui::Id>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Frame {
+        /// (route, layer) for every body drawn this frame
+        bodies: Vec<(u32, LayerId)>,
+        parent_layer: LayerId,
+        action: Option<NavAction>,
+    }
+
+    fn frame(ctx: &egui::Context, routes: &[u32], navigating: bool, returning: bool) -> Frame {
+        let mut bodies = Vec::new();
+        let mut parent_layer = LayerId::background();
+        let mut action = None;
+
+        let _ = ctx.run(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                parent_layer = ui.layer_id();
+                let resp = Nav::new(routes)
+                    .navigating(navigating)
+                    .returning(returning)
+                    .animate_transitions(false)
+                    .show_mut(ui, |ui, typ, nav| {
+                        if matches!(typ, NavUiType::Body) {
+                            bodies.push((*nav.top(), ui.layer_id()));
+                            // every route draws a widget with the same id, like
+                            // an app drawing each of its routes through one
+                            // render function. egui debug-asserts if it lands
+                            // on two layers in one frame.
+                            let rect = ui.available_rect_before_wrap();
+                            ui.interact(rect, egui::Id::new("shared"), egui::Sense::click());
+                        }
+                        RouteResponse {
+                            response: (),
+                            can_take_drag_from: Vec::new(),
+                        }
+                    });
+                action = resp.action;
+            });
+        });
+
+        Frame {
+            bodies,
+            parent_layer,
+            action,
+        }
+    }
+
+    #[test]
+    fn push_without_animation_draws_only_the_top_route() {
+        let ctx = egui::Context::default();
+        frame(&ctx, &[1], false, false);
+
+        let f = frame(&ctx, &[1, 2], true, false);
+        assert_eq!(f.bodies, vec![(2, f.parent_layer)]);
+        assert_eq!(f.action, Some(NavAction::Navigated));
+
+        let f = frame(&ctx, &[1, 2], false, false);
+        assert_eq!(f.bodies, vec![(2, f.parent_layer)]);
+        assert_eq!(f.action, None);
+    }
+
+    #[test]
+    fn back_without_animation_draws_only_the_top_route() {
+        let ctx = egui::Context::default();
+        frame(&ctx, &[1, 2], false, false);
+
+        let f = frame(&ctx, &[1, 2], false, true);
+        assert_eq!(f.bodies, vec![(2, f.parent_layer)]);
+        assert_eq!(f.action, Some(NavAction::Returned(ReturnType::Click)));
+
+        let f = frame(&ctx, &[1], false, false);
+        assert_eq!(f.bodies, vec![(1, f.parent_layer)]);
+        assert_eq!(f.action, None);
+    }
 }
