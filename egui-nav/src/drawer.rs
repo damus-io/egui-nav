@@ -65,7 +65,7 @@ impl<'a, Route: Clone> NavDrawer<'a, Route> {
     }
 
     fn id(&self, ui: &egui::Ui) -> egui::Id {
-        ui.id().with(("nav-drawer", self.id_source))
+        ui.scope_id().with(("nav-drawer", self.id_source))
     }
 
     pub fn drag_id(&self, ui: &egui::Ui) -> egui::Id {

@@ -61,7 +61,7 @@ impl<'a, Route: Clone> PopupSheet<'a, Route> {
     }
 
     fn id(&self, ui: &egui::Ui) -> egui::Id {
-        ui.id().with(("bottom_sheet", self.id_source))
+        ui.scope_id().with(("bottom_sheet", self.id_source))
     }
 
     pub fn drag_id(&self, ui: &egui::Ui) -> egui::Id {

@@ -211,7 +211,7 @@ pub enum DragAction {
 }
 
 fn state_id() -> egui::Id {
-    egui::Id::new("nav-drag-state")
+    egui::Id::unique("nav-drag-state")
 }
 
 pub fn get_state(ctx: &egui::Context) -> Option<DragState> {

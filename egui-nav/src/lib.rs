@@ -227,7 +227,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
     }
 
     fn id(&self, ui: &egui::Ui) -> egui::Id {
-        ui.id().with(("nav", self.id_source))
+        ui.scope_id().with(("nav", self.id_source))
     }
 
     pub fn drag_id(&self, ui: &egui::Ui) -> egui::Id {
@@ -346,7 +346,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
             let layer_id = if transitioning {
                 // when transitioning, we need a new layer id otherwise the
                 // view transform will transform more things than we want
-                LayerId::new(Order::Foreground, ui.id().with("fg"))
+                LayerId::new(Order::Foreground, ui.scope_id().with("fg"))
             } else {
                 // if we don't use the same layer id as the ui, then we
                 // will have scrollview MouseWheel scroll issues due to
@@ -356,7 +356,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
             };
             render_fg(
                 ui,
-                ui.id(), // this must be ui.id() to not break scroll positions
+                ui.scope_id(), // this must be ui.scope_id() to not break scroll positions
                 layer_id,
                 Some(Vec2::new(state.offset, 0.0)),
                 clip,
@@ -465,7 +465,7 @@ pub(crate) fn render_bg(
     alpha: Option<u8>,
     mut render_route: impl FnMut(&mut egui::Ui) -> Vec<egui::Id>,
 ) -> RenderBgResponse {
-    let id = ui.id();
+    let id = ui.scope_id();
 
     let layer_id = LayerId::new(Order::Background, id);
     let mut ui = egui::Ui::new(
