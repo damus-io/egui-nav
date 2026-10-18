@@ -323,6 +323,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
             let alpha = ((1.0 - (state.offset / available_rect.width())) * strength) as u8;
             let bg_resp = render_bg(
                 ui,
+                RouteUi::Child(ROUTE_SALT),
                 Some(translate_vec),
                 clip,
                 available_rect,
@@ -335,6 +336,13 @@ impl<'a, Route: Clone> Nav<'a, Route> {
 
         // foreground layer
         let fg_resp = {
+            if !transitioning {
+                // Stand in for the background route's `Ui`, so the
+                // foreground's unique id is the same whether or not a
+                // background was drawn before it this frame.
+                ui.skip_ahead_auto_ids(1);
+            }
+
             let clip = Rect::from_min_size(
                 available_rect.min,
                 vec2(
@@ -356,7 +364,7 @@ impl<'a, Route: Clone> Nav<'a, Route> {
             };
             render_fg(
                 ui,
-                ui.scope_id(), // this must be ui.scope_id() to not break scroll positions
+                RouteUi::Child(ROUTE_SALT),
                 layer_id,
                 Some(Vec2::new(state.offset, 0.0)),
                 clip,
@@ -457,25 +465,50 @@ fn spring_animate(offset: f32, target: f32, left: bool) -> Option<f32> {
     }
 }
 
+/// The salt a [`Nav`]'s routes are drawn under, as children of its `Ui`.
+const ROUTE_SALT: &str = "nav_route";
+
+/// How [`render_bg`] and [`render_fg`] build the `Ui` a route draws into.
+#[derive(Clone, Copy)]
+pub(crate) enum RouteUi {
+    /// A top-level `Ui` with this id, as both its scope and its unique id.
+    /// Two of them in one frame must not share an id: egui registers each
+    /// `Ui` as a widget, and one id on two layers trips its debug assert
+    /// ("Widget .. changed layer_id during the frame").
+    Root(egui::Id),
+
+    /// A child of the caller's `Ui`, salted with this. Two such children in
+    /// one frame share a scope id, so the background and foreground of a
+    /// transition read one route's state (scroll offsets, text edits) under
+    /// the same ids, while each gets its own unique id from the parent's
+    /// auto-id counter.
+    Child(&'static str),
+}
+
+impl RouteUi {
+    fn build(self, parent: &mut egui::Ui, builder: egui::UiBuilder) -> egui::Ui {
+        match self {
+            RouteUi::Root(id) => egui::Ui::new(parent.ctx().clone(), id, builder),
+            RouteUi::Child(salt) => parent.new_child(builder.id_salt(salt)),
+        }
+    }
+}
+
 pub(crate) fn render_bg(
     ui: &mut egui::Ui,
+    route_ui: RouteUi,
     translate_vec: Option<egui::Vec2>, // whether to translate the rendered route
     clip: egui::Rect,                  // rect that should be clipped
     available_rect: egui::Rect,        // rect of viewing area
     alpha: Option<u8>,
     mut render_route: impl FnMut(&mut egui::Ui) -> Vec<egui::Id>,
 ) -> RenderBgResponse {
-    let id = ui.scope_id();
-
-    let layer_id = LayerId::new(Order::Background, id);
-    let mut ui = egui::Ui::new(
-        ui.ctx().clone(),
-        id,
-        egui::UiBuilder::new()
-            .style(ui.style().clone())
-            .layer_id(layer_id)
-            .max_rect(available_rect),
-    );
+    let layer_id = LayerId::new(Order::Background, ui.scope_id());
+    let builder = egui::UiBuilder::new()
+        .style(ui.style().clone())
+        .layer_id(layer_id)
+        .max_rect(available_rect);
+    let mut ui = route_ui.build(ui, builder);
     ui.set_clip_rect(clip);
 
     let can_take_drag_from = render_route(&mut ui);
@@ -519,21 +552,18 @@ struct RenderBgResponse {
 
 pub(crate) fn render_fg<R>(
     ui: &mut egui::Ui,
-    id: egui::Id,
+    route_ui: RouteUi,
     layer_id: LayerId,
     translate_vec: Option<egui::Vec2>, // whether to translate the rendered route
     clip: egui::Rect,
     available_rect: egui::Rect,
     mut render_route: impl FnMut(&mut egui::Ui) -> RouteResponse<R>,
 ) -> RouteResponse<R> {
-    let mut ui = egui::Ui::new(
-        ui.ctx().clone(),
-        id,
-        egui::UiBuilder::new()
-            .style(ui.style().clone())
-            .layer_id(layer_id)
-            .max_rect(available_rect),
-    );
+    let builder = egui::UiBuilder::new()
+        .style(ui.style().clone())
+        .layer_id(layer_id)
+        .max_rect(available_rect);
+    let mut ui = route_ui.build(ui, builder);
     ui.set_clip_rect(clip);
 
     let res = render_route(&mut ui);

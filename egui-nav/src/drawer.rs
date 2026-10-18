@@ -2,7 +2,7 @@ use egui::{LayerId, Order};
 
 use crate::{
     drag::{DragAngle, DragParams},
-    render_bg, render_fg, Drag, DragDirection, NavAction, RouteResponse, State,
+    render_bg, render_fg, Drag, DragDirection, NavAction, RouteResponse, RouteUi, State,
 };
 
 pub struct NavDrawer<'a, Route: Clone> {
@@ -116,9 +116,15 @@ impl<'a, Route: Clone> NavDrawer<'a, Route> {
                 Some(((1.0 - t) * 200.0).round() as u8)
             };
 
-            render_bg(ui, None, bg_rect, avail_rect, alpha, |ui| {
-                show_route(ui, self.bg_route).can_take_drag_from
-            })
+            render_bg(
+                ui,
+                RouteUi::Root(ui.scope_id()),
+                None,
+                bg_rect,
+                avail_rect,
+                alpha,
+                |ui| show_route(ui, self.bg_route).can_take_drag_from,
+            )
             .can_take_drag_from
         };
 
@@ -214,7 +220,7 @@ impl<'a, Route: Clone> NavDrawer<'a, Route> {
         let drawer_response = Some(
             render_fg(
                 ui,
-                id.with("fg"),
+                RouteUi::Root(id.with("fg")),
                 LayerId::new(Order::Foreground, id.with("fg")),
                 Some(translate),
                 clip_rect,
